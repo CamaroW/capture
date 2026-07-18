@@ -24,6 +24,8 @@ addition made beyond [`product-plan.md`](product-plan.md).
 | D-008 | Optional Apple on-device intelligence provider | Addition | Accepted with gate |
 | D-009 | Allow page-context capture without a text selection | Clarification | Accepted |
 | D-010 | Standard-library virtual environment for the backend | Addition | Accepted |
+| D-011 | Numbered SQL migrations with the Python standard library | Addition | Accepted |
+| D-012 | Local live build-checklist dashboard | Addition | Accepted |
 
 ## D-001 — Localhost monorepo architecture
 
@@ -179,8 +181,46 @@ current development machine.
 This is an implementation-tooling choice, not a new product feature. A future
 toolchain change must preserve the documented start and test commands.
 
+## D-011 — Numbered SQL migrations with the Python standard library
+
+- Classification: Addition
+- Status: Accepted
+- Product impact: None; storage implementation only
+- Schedule impact: Low
+
+Layer 2 uses ordered `.sql` files plus a `schema_migrations` table and a small
+Python migration runner. Migrations execute transactionally before repository
+access. This gives the Build Week SQLite schema an auditable upgrade path
+without adding Alembic or an ORM.
+
+The initial migration implements the product-plan `captures` table plus the
+D-006 `context_truncated` column and database checks for the four accepted
+statuses. `client_capture_id` remains nullable and non-unique; stronger
+idempotency is deliberately deferred unless duplicate submissions become a
+demonstrated problem. A non-unique `created_at` index is included to support
+the contract's required newest-first list ordering in Layer 3; it introduces no
+new data constraint.
+
+## D-012 — Local live build-checklist dashboard
+
+- Classification: Addition
+- Status: Accepted
+- Product impact: None; developer visibility only
+- Schedule impact: Low
+
+The loopback backend exposes a developer-only HTML dashboard at
+`/dev/checklist` and a read-only JSON view at `/dev/checklist.json`. The JSON is
+regenerated from `docs/developer-b-checklist.md` on every request, and the page
+polls it every two seconds. Markdown remains the single source of truth, so
+there is no second checklist to drift out of date.
+
+The dashboard has no write endpoint, remote deployment, browser persistence,
+or external JavaScript dependency. It stays behind the existing localhost-only
+backend boundary and may be removed from a submission build without affecting
+Recall product behavior.
+
 ## Pending decisions
 
-Model snapshots, embedding dimensions, background-task mechanism, SQLite
-migration tooling, and the exact provider-metadata fields remain
-implementation-layer decisions and must not be silently fixed here.
+Model snapshots, embedding dimensions, background-task mechanism, and the exact
+provider-metadata fields remain implementation-layer decisions and must not be
+silently fixed here.

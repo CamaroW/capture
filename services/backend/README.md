@@ -1,8 +1,8 @@
 # Recall backend
 
-The backend is a local-only FastAPI service. Layer 1 provides validated
-configuration, SQLite connectivity, and `GET /health`; Capture persistence and
-API routes begin in Layer 2.
+The backend is a local-only FastAPI service. Layers 1–2 provide validated
+configuration, `GET /health`, numbered SQLite migrations, and transactional
+Capture persistence. HTTP Capture CRUD routes begin in Layer 3.
 
 Run all commands below from `services/backend/`.
 
@@ -40,7 +40,24 @@ Without an API key, the expected response is:
 ```
 
 The health probe creates the configured SQLite file if needed and checks it
-with `SELECT 1`. Layer 1 does not create application tables.
+with `SELECT 1` and verifies that every known migration is applied.
+
+## Live build checklist
+
+Open [http://127.0.0.1:8765/dev/checklist](http://127.0.0.1:8765/dev/checklist)
+while the backend is running. The page rereads
+`docs/developer-b-checklist.md` every two seconds, so saved checklist edits
+appear without a service restart. The dashboard is read-only and local-only.
+
+## SQLite persistence
+
+Numbered SQL files live in `app/migrations/` and run transactionally during
+backend startup and before repository access. The current migration creates the
+product-plan `captures` table; FTS5 remains deferred to Layer 5.
+
+Application code accesses Capture records through `app.repository` rather than
+issuing SQL from HTTP handlers. Source fields and the user note are not accepted
+by the enrichment-update method, preventing an AI update from overwriting them.
 
 ## Test
 

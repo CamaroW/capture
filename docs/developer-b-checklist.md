@@ -6,11 +6,11 @@ Project: Recall
 
 Last updated: 2026-07-18
 
-Current phase: Layer 1 complete; Layer 2 is next
+Current phase: Layers 0–2 and the D-012 live dashboard complete; Layer 3 is next
 
 Current branch: `main`
 
-Last verified commit: `926655c`
+Last verified commit: `fb7be35`
 
 Last baseline cross-check: 2026-07-18 against all sections of
 `docs/product-plan.md`
@@ -44,7 +44,7 @@ Update protocol:
 | --- | --- | --- | --- |
 | 0 | Contracts and documentation | Complete | Schemas and fixtures validated; commit `e75f783` pushed |
 | 1 | Backend foundation | Complete | 11 tests passed; live `/health` returned contracted `200` response |
-| 2 | SQLite persistence | Pending | Not started |
+| 2 | SQLite persistence | Complete | 30 tests passed; byte-equivalent Capture survived backend restart |
 | 3 | Capture CRUD and first integration | Pending | Not started |
 | 4 | OpenAI enrichment | Pending | Not started |
 | 5 | FTS5 keyword retrieval | Pending | Not started |
@@ -54,9 +54,9 @@ Update protocol:
 | 9 | Optional Apple on-device path | Gated | Decision D-008 accepted; prerequisites unmet |
 | 10 | Final freeze and submission | Pending | Not started |
 
-No hard blocker prevents Layer 2 work on the current branch. Layer 0 is
-verified in `origin/main` at merge commit `9c08243`, and Layer 1 is implemented
-locally with a clean exit gate.
+No hard blocker prevents Layer 3 work on the current branch. Layers 0 and 1 are
+verified in `origin/main`; Layer 2 passes its local exit gate, and D-012 keeps
+the new dashboard explicitly outside product scope.
 
 ## Scope, schedule, and collaboration guardrails
 
@@ -215,46 +215,97 @@ Status: `[x]` complete
 
 ---
 
-# Layer 2 — SQLite persistence
+# Developer status dashboard — addition D-012
 
-Status: `[ ]` pending
-
-## Decisions required before implementation
-
-- [ ] Select and record migration tooling.
-- [ ] Persist optional `client_capture_id`. Do not make uniqueness or full
-  idempotency a Layer 2 requirement unless duplicate submissions are observed
-  or both developers approve and document the behavior.
+Status: `[x]` complete
 
 ## Build tasks
 
-- [ ] Create the SQLite database at the configured path.
-- [ ] Add a migration or initialization mechanism; do not create tables ad hoc
-  inside request handlers.
-- [ ] Implement the `captures` table from the product plan.
-- [ ] Add the D-006 `context_truncated` column with false default.
-- [ ] Preserve `source`, `user_note`, and AI fields in separate columns.
-- [ ] Store array fields as JSON arrays, never comma-concatenated storage.
-- [ ] Store embeddings as nullable JSON arrays for the MVP.
-- [ ] Implement UTC `created_at` and `updated_at` behavior.
-- [ ] Implement the four states: `captured`, `processing`, `ready`, `error`.
-- [ ] Create a repository/data-access boundary independent of FastAPI routes.
-- [ ] Use transactions for initial Capture persistence and enrichment updates.
-
-## Required tests
-
-- [ ] Create and read English, Chinese, and mixed-language Captures.
-- [ ] Round-trip `null` URL, title, context, app, and note values.
-- [ ] Round-trip arrays without type or order loss.
-- [ ] Persist `context_truncated` correctly.
-- [ ] Verify data survives service restart.
-- [ ] Verify an invalid status cannot be stored.
-- [ ] Verify no AI field update modifies source or user-note fields.
+- [x] Add a local HTML dashboard at `/dev/checklist`.
+- [x] Generate dashboard data directly from this Markdown file on every
+  request; do not create a second status source.
+- [x] Refresh the browser view every two seconds without a server restart.
+- [x] Show layer progress, active tasks, blockers, resolved errors, and the last
+  successful refresh time.
+- [x] Make refresh failures visible and preserve the last successful view.
+- [x] Keep the dashboard read-only, dependency-free, and loopback-only.
+- [x] Add parser and endpoint tests.
 
 ## Exit gate
 
-- [ ] A Capture survives process restart with byte-equivalent source and user
+- [x] A checklist file change appears in an already-open dashboard within two
+  seconds, without restarting the backend.
+
+## Validation evidence
+
+- [x] The live HTML route returned HTTP `200` with a self-contained 17,368-byte
+  dashboard and no external asset dependency.
+- [x] While the backend process remained running, this checklist's phase and
+  Layer 2 status were edited; the next JSON request returned the new phase and
+  `Layer 2: complete` without a restart.
+- [x] Endpoint tests verify `Cache-Control: no-store`, direct Markdown rereads,
+  the two-second poll interval, and the read-only HTML/JSON routes.
+
+---
+
+# Layer 2 — SQLite persistence
+
+Status: `[x]` complete
+
+## Decisions required before implementation
+
+- [x] Select and record migration tooling. D-011 uses numbered SQL files and a
+  standard-library transactional migration runner.
+- [x] Persist optional `client_capture_id`. Do not make uniqueness or full
+  idempotency a Layer 2 requirement unless duplicate submissions are observed
+  or both developers approve and document the behavior. D-011 keeps the column
+  nullable and non-unique.
+
+## Build tasks
+
+- [x] Create the SQLite database at the configured path.
+- [x] Add a migration or initialization mechanism; do not create tables ad hoc
+  inside request handlers.
+- [x] Implement the `captures` table from the product plan.
+- [x] Add the D-006 `context_truncated` column with false default.
+- [x] Preserve `source`, `user_note`, and AI fields in separate columns.
+- [x] Store array fields as JSON arrays, never comma-concatenated storage.
+- [x] Store embeddings as nullable JSON arrays for the MVP.
+- [x] Implement UTC `created_at` and `updated_at` behavior.
+- [x] Implement the four states: `captured`, `processing`, `ready`, `error`.
+- [x] Create a repository/data-access boundary independent of FastAPI routes.
+- [x] Use transactions for initial Capture persistence and enrichment updates.
+
+## Required tests
+
+- [x] Create and read English, Chinese, and mixed-language Captures.
+- [x] Round-trip `null` URL, title, context, app, and note values.
+- [x] Round-trip arrays without type or order loss.
+- [x] Persist `context_truncated` correctly.
+- [x] Verify data survives service restart.
+- [x] Verify an invalid status cannot be stored.
+- [x] Verify no AI field update modifies source or user-note fields.
+
+## Exit gate
+
+- [x] A Capture survives process restart with byte-equivalent source and user
   content.
+
+## Validation evidence
+
+- [x] `.venv/bin/python -m pytest` passed all 30 tests after Layer 2 and the
+  dashboard were implemented.
+- [x] The migration runner applied `001_initial_captures.sql` twice
+  idempotently in tests and recorded `1:initial_captures` in live SQLite.
+- [x] A live backend created and reported a current database at a temporary
+  configured path without an OpenAI key.
+- [x] A separate process persisted Capture
+  `5bf83e79-5364-464a-aef9-779f9e51f3a0`; after a full backend stop/start, a
+  new process read matching UTF-8 hex for source and user-note bytes.
+- [x] Direct SQLite inspection returned `captured:clipboard:0` for the restart
+  fixture, confirming status, source type, and the default context flag.
+- [x] A release-wheel build included the numbered SQL migration and the live
+  dashboard HTML as package data.
 
 ---
 
@@ -757,11 +808,11 @@ Use IDs `B-###`. Never delete an entry; append resolution and date.
 - Severity: Schedule risk
 - Status: Open
 - Impact: The product plan's July 18 target includes FastAPI, health, SQLite,
-  Capture CRUD, curl proof, and macOS list integration. Layer 1 and its curl
-  proof are complete; Layers 2–3 and the macOS integration remain.
-- Resolution needed: Continue through Layers 2–3 and coordinate the first
-  macOS vertical-slice gate with Developer A.
-- Does it block Layer 1? No, but it reduces buffer before the July 21 deadline.
+  Capture CRUD, curl proof, and macOS list integration. Layers 1–2 and the
+  health curl proof are complete; Layer 3 CRUD and macOS integration remain.
+- Resolution needed: Continue through Layer 3 and coordinate the first macOS
+  vertical-slice gate with Developer A.
+- Does it block Layer 3? No, but it reduces buffer before the July 21 deadline.
 
 ## B-005 — Uncommitted documentation prevents a clean Layer 1 branch
 
@@ -868,3 +919,51 @@ resolved errors.
   metadata remains available to the environment but is no longer a candidate
   for source control.
 - Project impact: None after resolution.
+
+## E-009 — Named SQLite rows broke the healthy probe comparison
+
+- Date: 2026-07-18
+- Status: Resolved
+- Symptom: The first Layer 2 test run passed 24 tests but failed two health
+  tests because healthy databases returned HTTP `503` instead of `200`.
+- Cause: Layer 2 enabled `sqlite3.Row` for schema-version reads, while the
+  Layer 1 probe still compared `SELECT 1` to the tuple `(1,)`.
+- Resolution: Changed the probe to compare the first returned column by value;
+  the next complete run passed all 29 tests.
+- Project impact: Local regression detected before commit; no remote impact.
+
+## E-010 — Forced temporary-directory cleanup was rejected
+
+- Date: 2026-07-18
+- Status: Resolved
+- Symptom: The environment rejected `rm -rf` for the isolated Layer 2 restart
+  proof directory under `/tmp`.
+- Resolution: Listed the exact isolated directory and its single database file,
+  then removed it successfully with non-force `rm -r`.
+- Project impact: None; the command ran after all proofs and did not touch the
+  repository.
+
+## E-011 — Wheel verification generated an unignored build directory
+
+- Date: 2026-07-18
+- Status: Resolved
+- Symptom: `pip wheel` correctly packaged the migration and dashboard assets but
+  left `services/backend/build/` visible as untracked output.
+- Resolution: Added the standard Python `build/` ignore rule, confirmed the
+  directory contained only generated package copies, and removed it without
+  force.
+- Project impact: None; final review caught the artifact before staging.
+
+## E-012 — System `tidy` does not recognize HTML5 semantic elements
+
+- Date: 2026-07-18
+- Status: Resolved
+- Symptom: `/usr/bin/tidy` exited `2`, reporting standard elements such as
+  `<main>`, `<header>`, `<section>`, and `<article>` as unknown and assuming a
+  non-UTF-8 character set.
+- Cause: The bundled validator targets an older HTML dialect and cannot
+  validate the dashboard's HTML5 document accurately.
+- Resolution: Preserved semantic HTML5 and added a standard-library parser test
+  that verifies balanced elements and unique IDs; all 30 tests pass.
+- Project impact: No runtime failure; the dashboard returned HTTP `200` and its
+  live JSON behavior already passed.
