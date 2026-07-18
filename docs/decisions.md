@@ -26,6 +26,7 @@ addition made beyond [`product-plan.md`](product-plan.md).
 | D-010 | Standard-library virtual environment for the backend | Addition | Accepted |
 | D-011 | Numbered SQL migrations with the Python standard library | Addition | Accepted |
 | D-012 | Local live build-checklist dashboard | Addition | Accepted |
+| D-013 | Proceed past Layer 3 with a documented macOS integration holder | Addition | Accepted with open gate |
 
 ## D-001 — Localhost monorepo architecture
 
@@ -218,6 +219,24 @@ The dashboard has no write endpoint, remote deployment, browser persistence,
 or external JavaScript dependency. It stays behind the existing localhost-only
 backend boundary and may be removed from a submission build without affecting
 Recall product behavior.
+
+## D-013 — Proceed past Layer 3 with a documented macOS integration holder
+
+- Classification: Addition / workflow exception
+- Status: Accepted with open gate
+- Product impact: None; no macOS behavior is claimed as implemented
+- Schedule impact: Layer 4 backend work proceeds in parallel with Developer A
+
+The product-plan build order places the first macOS list integration before AI
+enrichment. At the user's direction, Developer B may begin Layer 4 after the
+Layer 3 backend is verified and pushed, while Developer A's display confirmation
+remains open. A non-production Swift example under `docs/examples/` documents
+the expected decoding and list request without modifying Developer A's Xcode
+project or pretending the shared vertical slice is complete.
+
+The placeholder is not an exit-gate substitute. Developer A must still display
+the live Capture, preserve source/user-note separation, and remove or supersede
+the holder before the shared Layer 3 gate can be marked complete.
 
 ## Pending decisions
 

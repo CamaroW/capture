@@ -323,7 +323,7 @@
 
     <script>
       const POLL_INTERVAL_MS = 2_000;
-      const state = { hasRendered: false };
+      const state = { hasRendered: false, openStreams: new Set() };
 
       function node(tag, className, text) {
         const element = document.createElement(tag);
@@ -371,7 +371,15 @@
 
       function layerCard(stream, isDashboard = false) {
         const details = node("details", "layer");
-        if (stream.status === "in_progress") details.open = true;
+        const key = isDashboard ? "dashboard" : `layer-${stream.number}`;
+        details.dataset.streamKey = key;
+        details.open = state.hasRendered
+          ? state.openStreams.has(key)
+          : stream.status === "in_progress";
+        details.addEventListener("toggle", () => {
+          if (details.open) state.openStreams.add(key);
+          else state.openStreams.delete(key);
+        });
         const summary = node("summary");
         summary.append(node("span", "layer-number mono", isDashboard ? "LIVE" : String(stream.number).padStart(2, "0")));
         const title = node("div");
@@ -394,6 +402,13 @@
 
       function renderLayers(data) {
         const root = document.getElementById("layers");
+        if (state.hasRendered) {
+          state.openStreams = new Set(
+            [...root.querySelectorAll("details.layer[open]")]
+              .map((details) => details.dataset.streamKey)
+              .filter(Boolean)
+          );
+        }
         const cards = [];
         if (data.dashboard) cards.push(layerCard(data.dashboard, true));
         (data.layers || []).forEach((layer) => cards.push(layerCard(layer)));

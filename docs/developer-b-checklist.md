@@ -6,11 +6,11 @@ Project: Recall
 
 Last updated: 2026-07-18
 
-Current phase: Layers 0–2 and the D-012 live dashboard complete; Layer 3 is next
+Current phase: Layer 3 backend verified; macOS holder documented; Layer 4 is next
 
 Current branch: `main`
 
-Last verified commit: `fb7be35`
+Last verified commit: `0622ad0`
 
 Last baseline cross-check: 2026-07-18 against all sections of
 `docs/product-plan.md`
@@ -44,8 +44,8 @@ Update protocol:
 | --- | --- | --- | --- |
 | 0 | Contracts and documentation | Complete | Schemas and fixtures validated; commit `e75f783` pushed |
 | 1 | Backend foundation | Complete | 11 tests passed; live `/health` returned contracted `200` response |
-| 2 | SQLite persistence | Complete | 30 tests passed; byte-equivalent Capture survived backend restart |
-| 3 | Capture CRUD and first integration | Pending | Not started |
+| 2 | SQLite persistence | Complete | Commit `0622ad0` pushed; 30 tests and restart proof passed |
+| 3 | Capture CRUD and first integration | Backend complete / integration deferred | 55 tests and live POST/SQLite/GET/list proof passed; D-013 holder awaits Developer A |
 | 4 | OpenAI enrichment | Pending | Not started |
 | 5 | FTS5 keyword retrieval | Pending | Not started |
 | 6 | Chrome capture | Pending | Not started |
@@ -54,9 +54,9 @@ Update protocol:
 | 9 | Optional Apple on-device path | Gated | Decision D-008 accepted; prerequisites unmet |
 | 10 | Final freeze and submission | Pending | Not started |
 
-No hard blocker prevents Layer 3 work on the current branch. Layers 0 and 1 are
-verified in `origin/main`; Layer 2 passes its local exit gate, and D-012 keeps
-the new dashboard explicitly outside product scope.
+No hard blocker prevents Layer 3 work on the current branch. Layers 0–2 are
+verified in `origin/main` at `0622ad0`; D-012 remains explicitly outside
+product scope.
 
 ## Scope, schedule, and collaboration guardrails
 
@@ -230,6 +230,8 @@ Status: `[x]` complete
 - [x] Make refresh failures visible and preserve the last successful view.
 - [x] Keep the dashboard read-only, dependency-free, and loopback-only.
 - [x] Add parser and endpoint tests.
+- [x] Preserve each layer's expanded or collapsed state across the two-second
+  live refresh.
 
 ## Exit gate
 
@@ -245,6 +247,8 @@ Status: `[x]` complete
   `Layer 2: complete` without a restart.
 - [x] Endpoint tests verify `Cache-Control: no-store`, direct Markdown rereads,
   the two-second poll interval, and the read-only HTML/JSON routes.
+- [x] Stable stream keys and in-memory open-state capture preserve user choices
+  across repeated live renders; a regression test guards the mechanism.
 
 ---
 
@@ -311,35 +315,55 @@ Status: `[x]` complete
 
 # Layer 3 — Capture CRUD and first vertical slice
 
-Status: `[ ]` pending
+Status: `[~]` backend complete; macOS integration deferred under D-013
 
 ## Build tasks
 
-- [ ] Map the checked-in Capture schema to backend validation models.
-- [ ] Implement `POST /v1/captures`.
-- [ ] Persist the original request before any enrichment attempt.
-- [ ] Return `202 Accepted` with status `processing`.
-- [ ] Implement `GET /v1/captures?limit=&offset=`.
-- [ ] Implement `GET /v1/captures/{id}`.
-- [ ] Use the documented response envelope and error envelope.
-- [ ] Validate character limits and the D-009 at-least-one-content-field
+- [x] Map the checked-in Capture schema to backend validation models.
+- [x] Implement `POST /v1/captures`.
+- [x] Persist the original request before any enrichment attempt.
+- [x] Return `202 Accepted` with status `processing`.
+- [x] Implement `GET /v1/captures?limit=&offset=`.
+- [x] Implement `GET /v1/captures/{id}`.
+- [x] Use the documented response envelope and error envelope.
+- [x] Validate character limits and the D-009 at-least-one-content-field
   clarification.
-- [ ] Return stable codes for validation and not-found errors.
-- [ ] Write verified curl examples using the checked-in fixture.
-- [ ] Give Developer A the live base URL and curl evidence.
+- [x] Return stable codes for validation and not-found errors.
+- [x] Write verified curl examples using the checked-in fixture.
+- [x] Give Developer A the live base URL and curl evidence in
+  `docs/developer-a-backend-handoff.md`.
+- [x] Add a non-production Swift decoding/list holder under `docs/examples/`
+  without modifying Developer A's Xcode project.
 
 ## Required tests
 
-- [ ] Valid web Capture returns `202` and a server UUID.
-- [ ] Valid clipboard Capture without a URL succeeds.
-- [ ] Empty and long user notes round-trip without source-data loss.
-- [ ] Missing URL and missing page title are accepted when other content exists.
-- [ ] Empty selection succeeds only when title or context contains text.
-- [ ] Unknown fields fail.
-- [ ] Overlong selection and context fail visibly.
-- [ ] List ordering is `created_at DESC`.
-- [ ] Pagination limits are enforced.
-- [ ] Unknown UUID returns the documented `404` envelope.
+- [x] Valid web Capture returns `202` and a server UUID.
+- [x] Valid clipboard Capture without a URL succeeds.
+- [x] Empty and long user notes round-trip without source-data loss.
+- [x] Missing URL and missing page title are accepted when other content exists.
+- [x] Empty selection succeeds only when title or context contains text.
+- [x] Unknown fields fail.
+- [x] Overlong selection and context fail visibly.
+- [x] List ordering is `created_at DESC`.
+- [x] Pagination limits are enforced.
+- [x] Unknown UUID returns the documented `404` envelope.
+
+## Validation evidence
+
+- [x] `.venv/bin/python -m pytest` passes all 55 tests without warnings.
+- [x] A drift test matches request-model fields and required fields to
+  `capture.schema.json`, and response-model fields to the ready fixture.
+- [x] API responses exclude internal `embedding`/`embedding_json` storage fields.
+- [x] Validation errors contain the stable `validation_error` code and a UUID
+  request ID without echoing captured source text.
+- [x] Unexpected API failures use the documented `internal_error` envelope and
+  log only method/path plus the exception, not the request body.
+- [x] Live fixture POST returned HTTP `202` and Capture
+  `359d1c47-0190-40c4-8681-d994408860be` with status `processing`.
+- [x] Direct SQLite inspection found the same UUID with source type `web`, 146
+  selected characters, and 162 user-note characters.
+- [x] Live detail and list GETs returned the persisted fixture; live unknown-ID
+  and empty-content requests returned the documented `404` and `422` envelopes.
 
 ## Vertical-slice exit gate
 
@@ -350,9 +374,10 @@ curl POST Capture
 → Developer A's macOS app displays the real Capture
 ```
 
-- [ ] Backend portion passes.
-- [ ] Developer A confirms macOS display integration.
-- [ ] Commit and push the working slice.
+- [x] Backend portion passes.
+- [D] Developer A confirms macOS display integration. Deferred under D-013;
+  the placeholder does not satisfy the shared exit gate. See blocker B-006.
+- [x] Commit and push the verified backend slice and documented holder.
 
 ---
 
@@ -808,11 +833,12 @@ Use IDs `B-###`. Never delete an entry; append resolution and date.
 - Severity: Schedule risk
 - Status: Open
 - Impact: The product plan's July 18 target includes FastAPI, health, SQLite,
-  Capture CRUD, curl proof, and macOS list integration. Layers 1–2 and the
-  health curl proof are complete; Layer 3 CRUD and macOS integration remain.
-- Resolution needed: Continue through Layer 3 and coordinate the first macOS
-  vertical-slice gate with Developer A.
-- Does it block Layer 3? No, but it reduces buffer before the July 21 deadline.
+  Capture CRUD, curl proof, and macOS list integration. Layers 1–3 backend work
+  and curl proof are complete; macOS integration remains.
+- Resolution needed: Developer A completes the first macOS vertical-slice gate
+  using the checked-in handoff.
+- Does it block later backend work? No, but it blocks the shared vertical slice
+  and reduces buffer before the July 21 deadline.
 
 ## B-005 — Uncommitted documentation prevents a clean Layer 1 branch
 
@@ -827,6 +853,20 @@ Use IDs `B-###`. Never delete an entry; append resolution and date.
   started from clean `main`, with local `HEAD` equal to `origin/main`.
 - Does it block writing code? No technically; yes for the recommended clean
   branch and commit history.
+
+## B-006 — Developer A macOS display confirmation is pending
+
+- Opened: 2026-07-18
+- Severity: Coordination / Layer 3 exit gate
+- Status: Open / deferred to Developer A under D-013
+- Impact: Developer B's POST → SQLite → GET/list flow passes, but the first
+  shared vertical slice is not complete until the macOS app displays the live
+  backend Capture.
+- Resolution needed: Developer A follows
+  `docs/developer-a-backend-handoff.md`, adapts or replaces the documented Swift
+  holder, confirms live list/detail display, and reports contract mismatches.
+- Does it block Layer 4 backend work? No under D-013. It still blocks marking
+  the shared Layer 3 vertical slice complete.
 
 # Errors encountered
 
@@ -967,3 +1007,66 @@ resolved errors.
   that verifies balanced elements and unique IDs; all 30 tests pass.
 - Project impact: No runtime failure; the dashboard returned HTTP `200` and its
   live JSON behavior already passed.
+
+## E-013 — Layer 3 validation tests emitted deprecated 422 constant warnings
+
+- Date: 2026-07-18
+- Status: Resolved
+- Symptom: All 51 tests passed, but 13 validation cases warned that the
+  installed Starlette release renamed `HTTP_422_UNPROCESSABLE_ENTITY` to
+  `HTTP_422_UNPROCESSABLE_CONTENT`.
+- Resolution: Switched to the supported constant while preserving numeric HTTP
+  status `422`; the complete suite now passes 53 tests without warnings.
+- Project impact: No response-code failure; detected before commit.
+
+## E-014 — Live refresh collapses user-expanded dashboard layers
+
+- Date: 2026-07-18
+- Status: Resolved
+- Symptom: A layer expanded by the user stays open only until the next
+  two-second checklist refresh, then collapses.
+- Cause: Every refresh replaces all `<details>` elements and reapplies only the
+  default active-layer state, discarding the user's current open/closed state.
+- Resolution: Each panel now has a stable stream key. The renderer captures all
+  open keys before replacement and restores those keys on the fresh elements;
+  toggle events retain both expanded and explicitly collapsed choices in
+  memory. A regression test guards the state-preservation mechanism.
+- Project impact: Checklist data remains correct, but inspection is disruptive.
+
+## E-015 — Dashboard status update initially targeted Layer 0
+
+- Date: 2026-07-18
+- Status: Resolved
+- Symptom: A broad patch changed Layer 0's generic `Status: [x] complete` line
+  instead of the identically formatted dashboard status line.
+- Resolution: The immediate checklist inspection caught the mismatch; Layer 0
+  was restored to complete and the dashboard alone was marked in progress using
+  section-specific patch context.
+- Project impact: No code or historical evidence changed; the incorrect live
+  status existed only during this edit cycle.
+
+## E-016 — Dashboard verification command used the wrong relative path
+
+- Date: 2026-07-18
+- Status: Resolved
+- Symptom: The combined source-inspection and test command stopped at `sed`
+  because it referenced `services/backend/...` while its working directory was
+  already `services/backend`.
+- Resolution: Reran the inspection and test suite from the repository root with
+  paths relative to that directory.
+- Project impact: No implementation or test failure; the first verification
+  command exited before tests started.
+
+## E-017 — Dashboard snapshot test observed the live in-progress status
+
+- Date: 2026-07-18
+- Status: Resolved
+- Symptom: The full suite reported 54 passes and one failure because the
+  dashboard snapshot test expects its status to be complete while this fix had
+  intentionally marked it in progress.
+- Cause: The live checklist is the test fixture and accurately exposed the
+  temporary implementation status.
+- Resolution: Marked the verified dashboard task complete, resolved E-014, and
+  reran the full suite successfully with 55 tests passing.
+- Project impact: No product-code assertion failed; final verification is
+  complete.

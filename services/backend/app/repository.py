@@ -94,10 +94,12 @@ class CaptureRepository:
         database_path: Path,
         *,
         clock: Callable[[], datetime] = _utc_now,
+        initialize: bool = True,
     ) -> None:
         self.database_path = database_path
         self._clock = clock
-        apply_migrations(database_path)
+        if initialize:
+            apply_migrations(database_path)
 
     def _timestamp(self) -> str:
         now = self._clock()
@@ -169,6 +171,18 @@ class CaptureRepository:
                 "SELECT * FROM captures WHERE id = ?", (capture_id,)
             ).fetchone()
         return None if row is None else _row_to_record(row)
+
+    def list_captures(self, *, limit: int, offset: int) -> list[CaptureRecord]:
+        with database_connection(self.database_path) as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM captures
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+                """,
+                (limit, offset),
+            ).fetchall()
+        return [_row_to_record(row) for row in rows]
 
     def update_enrichment(
         self,

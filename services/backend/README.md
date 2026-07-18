@@ -59,6 +59,30 @@ Application code accesses Capture records through `app.repository` rather than
 issuing SQL from HTTP handlers. Source fields and the user note are not accepted
 by the enrichment-update method, preventing an AI update from overwriting them.
 
+## Capture API
+
+Layer 3 exposes create, newest-first list, and detail routes. From
+`services/backend/`, create the checked-in example with:
+
+```bash
+curl --header 'Content-Type: application/json' \
+  --data-binary @../../contracts/examples/capture-request.json \
+  http://127.0.0.1:8765/v1/captures
+```
+
+The response is HTTP `202` with status `processing`. Enrichment does not run
+until Layer 4, so Layer 3 records intentionally remain in that state.
+
+Use the returned `id` in the detail route and list the newest Captures with:
+
+```bash
+curl http://127.0.0.1:8765/v1/captures/{id}
+curl 'http://127.0.0.1:8765/v1/captures?limit=50&offset=0'
+```
+
+Validation failures and unknown Capture IDs use the versioned error envelope
+in `contracts/api.md`.
+
 ## Test
 
 ```bash

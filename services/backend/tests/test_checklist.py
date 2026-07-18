@@ -118,3 +118,14 @@ def test_dashboard_html_has_balanced_elements_and_unique_ids() -> None:
 
     assert parser.stack == []
     assert len(parser.ids) == len(set(parser.ids))
+
+
+def test_dashboard_preserves_expanded_layers_across_refreshes() -> None:
+    dashboard = Path(__file__).parents[1] / "app" / "static" / "checklist.html"
+    html = dashboard.read_text(encoding="utf-8")
+
+    assert "openStreams: new Set()" in html
+    assert 'root.querySelectorAll("details.layer[open]")' in html
+    assert "details.dataset.streamKey = key" in html
+    assert "state.openStreams.has(key)" in html
+    assert 'details.addEventListener("toggle"' in html
