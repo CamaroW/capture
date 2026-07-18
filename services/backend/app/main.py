@@ -30,6 +30,7 @@ from app.database import (
     apply_migrations,
     database_schema_is_current,
 )
+from app.embeddings import EmbeddingProvider, OpenAIEmbeddingProvider
 from app.enrichment import (
     EnrichmentProvider,
     EnrichmentService,
@@ -41,6 +42,7 @@ from app.repository import (
     CaptureNotFoundError,
     CaptureRepository,
 )
+from app.search import HybridSearchService
 
 
 logger = logging.getLogger(__name__)
@@ -79,7 +81,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="Recall Backend", version="0.5.0", lifespan=lifespan)
+app = FastAPI(title="Recall Backend", version="0.6.0", lifespan=lifespan)
 
 
 def get_repository() -> CaptureRepository:
@@ -94,6 +96,16 @@ def get_enrichment_provider() -> EnrichmentProvider | None:
     return OpenAIEnrichmentProvider(
         api_key=settings.openai_api_key.get_secret_value(),
         model=settings.openai_model,
+    )
+
+
+def get_embedding_provider() -> EmbeddingProvider | None:
+    settings = get_settings()
+    if not settings.openai_configured or settings.openai_api_key is None:
+        return None
+    return OpenAIEmbeddingProvider(
+        api_key=settings.openai_api_key.get_secret_value(),
+        model=settings.openai_embedding_model,
     )
 
 
@@ -162,6 +174,10 @@ def create_capture(
         EnrichmentProvider | None,
         Depends(get_enrichment_provider),
     ],
+    embedding_provider: Annotated[
+        EmbeddingProvider | None,
+        Depends(get_embedding_provider),
+    ],
 ) -> CaptureResponse:
     record = repository.create(request.to_storage_model(), status="processing")
     if provider is None:
@@ -172,7 +188,7 @@ def create_capture(
         )
     else:
         background_tasks.add_task(
-            EnrichmentService(repository, provider).run,
+            EnrichmentService(repository, provider, embedding_provider).run,
             record.id,
         )
     return CaptureResponse.from_record(record)
@@ -195,18 +211,25 @@ def list_captures(
 @app.get("/v1/search", response_model=SearchResponse)
 def search_captures(
     repository: Annotated[CaptureRepository, Depends(get_repository)],
+    embedding_provider: Annotated[
+        EmbeddingProvider | None,
+        Depends(get_embedding_provider),
+    ],
     q: str = "",
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> SearchResponse:
-    matches = repository.search_captures(query=q, limit=limit)
+    matches = HybridSearchService(repository, embedding_provider).search(
+        query=q,
+        limit=limit,
+    )
     return SearchResponse(
         query=q,
         results=[
             SearchResult(
                 capture=CaptureResponse.from_record(match.capture),
-                score=match.keyword_score,
+                score=match.score,
                 keyword_score=match.keyword_score,
-                semantic_score=None,
+                semantic_score=match.semantic_score,
             )
             for match in matches
         ],
@@ -230,6 +253,10 @@ def enrich_capture(
     provider: Annotated[
         EnrichmentProvider | None,
         Depends(get_enrichment_provider),
+    ],
+    embedding_provider: Annotated[
+        EmbeddingProvider | None,
+        Depends(get_embedding_provider),
     ],
 ) -> CaptureResponse | JSONResponse:
     if provider is None:
@@ -255,7 +282,7 @@ def enrich_capture(
         )
 
     background_tasks.add_task(
-        EnrichmentService(repository, provider).run,
+        EnrichmentService(repository, provider, embedding_provider).run,
         record.id,
     )
     return CaptureResponse.from_record(record)
