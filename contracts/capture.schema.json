@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://recall.local/schemas/capture.schema.json",
+  "title": "CaptureCreateRequest",
+  "description": "A source capture submitted by the macOS app or Chrome extension before AI enrichment.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "client_capture_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Optional client-generated idempotency identifier."
+    },
+    "source_type": {
+      "type": "string",
+      "enum": [
+        "web",
+        "clipboard"
+      ]
+    },
+    "source_app": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_title": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_url": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uri"
+    },
+    "selected_text": {
+      "type": "string",
+      "maxLength": 12000,
+      "description": "The original selection. It may be empty for a page-context capture."
+    },
+    "surrounding_context": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 20000
+    },
+    "context_truncated": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when the client truncated surrounding_context before submission."
+    },
+    "user_note": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "captured_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 timestamp recorded by the capturing client."
+    }
+  },
+  "required": [
+    "source_type",
+    "selected_text",
+    "captured_at"
+  ],
+  "anyOf": [
+    {
+      "properties": {
+        "selected_text": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "selected_text"
+      ]
+    },
+    {
+      "properties": {
+        "surrounding_context": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "surrounding_context"
+      ]
+    },
+    {
+      "properties": {
+        "source_title": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "source_title"
+      ]
+    }
+  ]
+}

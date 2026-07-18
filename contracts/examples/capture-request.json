@@ -1,0 +1,12 @@
+{
+  "client_capture_id": "149f51e1-8c18-42d4-9778-3f3b062527a2",
+  "source_type": "web",
+  "source_app": "Google Chrome",
+  "source_title": "Nginx serves 502 after moving a FastAPI service",
+  "source_url": "https://example.com/questions/fastapi-nginx-502",
+  "selected_text": "The systemd service was using a different working directory. Set WorkingDirectory to the project directory and restart both the service and Nginx.",
+  "surrounding_context": "The application worked when started manually but returned 502 through Nginx after being configured as a systemd service.",
+  "context_truncated": false,
+  "user_note": "Every common socket and permission fix failed. Setting WorkingDirectory was the only thing that fixed this on my VPS. Check the deployment path before copying it.",
+  "captured_at": "2026-07-18T10:20:00-07:00"
+}

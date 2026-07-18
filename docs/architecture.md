@@ -1,0 +1,132 @@
+# Recall architecture baseline
+
+Status: Accepted for Build Week
+
+Last updated: 2026-07-18
+
+This document translates the product baseline into system boundaries and
+handoffs. It does not replace [`product-plan.md`](product-plan.md).
+
+## System shape
+
+```text
+Chrome extension ─┐
+                  ├─ HTTP JSON on 127.0.0.1:8765 ─ Local FastAPI backend
+macOS application ┘                              ├─ SQLite / FTS5
+                                                  ├─ OpenAI Responses API
+                                                  └─ OpenAI Embeddings API
+```
+
+The backend is the only component that persists Captures, calls OpenAI, builds
+the full-text index, generates embeddings, or calculates hybrid-search scores.
+The macOS app and Chrome extension are API clients.
+
+## Ownership
+
+### Developer A — Capture and experience
+
+Owned paths:
+
+- `apps/macos/`
+- `docs/demo-script.md`
+
+Responsibilities:
+
+- SwiftUI/AppKit application and menu bar
+- Clipboard capture and quick-save window
+- Capture list, detail, search, and processing/error states
+- Demo interaction and visual consistency
+
+### Developer B — Intelligence and data
+
+Owned paths:
+
+- `services/backend/`
+- `apps/chrome-extension/`
+- `contracts/`
+
+Responsibilities:
+
+- FastAPI, SQLite, and API behavior
+- OpenAI Structured Outputs and enrichment failure handling
+- Embeddings, FTS5, and hybrid search
+- Chrome selection/context capture and localhost delivery
+
+### Shared
+
+- Capture and enrichment contracts
+- Prompt quality and representative fixtures
+- End-to-end integration, README, tests, demo, and submission materials
+
+Contract changes require both developers to agree before implementation.
+
+## Core data boundaries
+
+Every Capture keeps three independent layers:
+
+1. **Source** — selected text, surrounding context, URL, title, and source app.
+2. **User note** — the user's personal reason, situation, or caution.
+3. **AI interpretation** — title, summary, problem, key insight, inferred reason,
+   caveats, tags, entities, and search aliases.
+
+The AI interpretation may refer to the other layers but must never overwrite
+them. The original Capture is committed before enrichment begins.
+
+## Capture lifecycle
+
+```text
+client request
+→ persist original Capture
+→ processing
+→ Structured Output enrichment
+→ embedding generation
+→ FTS synchronization
+→ ready
+```
+
+Failure rules:
+
+- A model or embedding failure never deletes the source or user note.
+- Enrichment failure produces `error` plus a retryable error message.
+- Embedding failure may leave a text-enriched Capture searchable through FTS.
+- The MVP uses polling, not WebSockets.
+
+## Contract boundary
+
+- Capture input: `contracts/capture.schema.json`
+- AI enrichment output: `contracts/enriched_capture.schema.json`
+- Transport and full response shapes: `contracts/api.md`
+- Cross-client fixtures: `contracts/examples/`
+
+The schemas reject unknown fields. Contract evolution is intentional and must
+be recorded in `docs/decisions.md`.
+
+## Embedding projection
+
+Only `ready` Captures are embedded. The projection follows product-plan §12.1
+exactly and is documented as a byte-stable construction in
+`contracts/api.md`. Its order or labels must not change without incrementing
+`enrichment_version`, rebuilding stored embeddings, and recording a decision.
+
+## Build order
+
+1. Contracts and documentation (Layer 0).
+2. Backend configuration and health check.
+3. SQLite persistence and Capture CRUD.
+4. macOS integration for the first vertical slice.
+5. Structured enrichment and FTS5.
+6. Chrome capture.
+7. Embeddings and hybrid retrieval.
+8. Reliability, demo fixtures, and submission freeze.
+
+No P1 or P2 feature begins before the three product-plan vertical slices work.
+
+## Explicit non-goals for the submission
+
+- Cloud sync, accounts, or team collaboration
+- External vector databases
+- Redis, Celery, or a durable distributed queue
+- WebSockets
+- OCR, image understanding, or full-page offline snapshots
+- Multi-agent orchestration
+- Production App Store packaging and notarization
