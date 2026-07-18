@@ -6,12 +6,11 @@ Project: Recall
 
 Last updated: 2026-07-18
 
-Current phase: Layer 4 committed locally and verified; push pending; live OpenAI proof blocked by B-007
+Current phase: Layer 4 committed, pushed, and verified; live OpenAI proof blocked by B-007
 
 Current branch: `main`
 
-Last verified origin commit: `17264fe`; verified Layer 4 work is the current
-local `HEAD` and remains unpushed
+Last verified Layer 4 implementation commit: `84a0bb7`, pushed to `origin/main`
 
 Last baseline cross-check: 2026-07-18 against all sections of
 `docs/product-plan.md`
@@ -507,7 +506,7 @@ macOS Clipboard Capture
   real OpenAI proof remains blocked by B-007.
 - [D] Developer A confirms polling and state UI under D-013/B-006.
 - [x] Commit the working Layer 4 slice.
-- [ ] Push the working Layer 4 slice; not requested in the current task.
+- [x] Push the working Layer 4 slice in implementation commit `84a0bb7`.
 
 ---
 
