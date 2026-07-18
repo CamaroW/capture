@@ -1,0 +1,29 @@
+{
+  "title": "VPS 上 FastAPI 502 的 systemd 工作目录修复",
+  "summary": "The FastAPI service worked when launched manually but failed behind Nginx under systemd. The saved answer points to an incorrect systemd working directory, and the user confirmed that setting WorkingDirectory fixed the VPS deployment after common socket and permission suggestions failed.",
+  "problem": "A FastAPI application returned HTTP 502 when run through Nginx and systemd.",
+  "key_insight": "The systemd process was starting from the wrong working directory, even though the application worked when launched manually.",
+  "why_saved": "This was the only successful fix after more common troubleshooting methods failed.",
+  "caveats": [
+    "Verify the actual deployment directory before changing the service file.",
+    "Restart the systemd service and Nginx after applying the change."
+  ],
+  "tags": [
+    "FastAPI",
+    "Nginx",
+    "systemd",
+    "VPS",
+    "Deployment"
+  ],
+  "entities": [
+    "FastAPI",
+    "Nginx",
+    "systemd"
+  ],
+  "search_aliases": [
+    "surprising VPS fix",
+    "FastAPI works manually but not in systemd",
+    "502 after all common fixes failed",
+    "wrong deployment working directory"
+  ]
+}

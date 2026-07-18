@@ -1,0 +1,45 @@
+{
+  "id": "4b3a30b7-55d9-4ef8-93ef-34281c826e52",
+  "client_capture_id": "149f51e1-8c18-42d4-9778-3f3b062527a2",
+  "created_at": "2026-07-18T17:20:01Z",
+  "updated_at": "2026-07-18T17:20:04Z",
+  "captured_at": "2026-07-18T10:20:00-07:00",
+  "status": "ready",
+  "source_type": "web",
+  "source_app": "Google Chrome",
+  "source_title": "Nginx serves 502 after moving a FastAPI service",
+  "source_url": "https://example.com/questions/fastapi-nginx-502",
+  "selected_text": "The systemd service was using a different working directory. Set WorkingDirectory to the project directory and restart both the service and Nginx.",
+  "surrounding_context": "The application worked when started manually but returned 502 through Nginx after being configured as a systemd service.",
+  "context_truncated": false,
+  "user_note": "Every common socket and permission fix failed. Setting WorkingDirectory was the only thing that fixed this on my VPS. Check the deployment path before copying it.",
+  "ai_title": "VPS 上 FastAPI 502 的 systemd 工作目录修复",
+  "ai_summary": "The FastAPI service worked when launched manually but failed behind Nginx under systemd. The saved answer points to an incorrect systemd working directory, and the user confirmed that setting WorkingDirectory fixed the VPS deployment after common socket and permission suggestions failed.",
+  "problem": "A FastAPI application returned HTTP 502 when run through Nginx and systemd.",
+  "key_insight": "The systemd process was starting from the wrong working directory, even though the application worked when launched manually.",
+  "why_saved": "This was the only successful fix after more common troubleshooting methods failed.",
+  "caveats": [
+    "Verify the actual deployment directory before changing the service file.",
+    "Restart the systemd service and Nginx after applying the change."
+  ],
+  "tags": [
+    "FastAPI",
+    "Nginx",
+    "systemd",
+    "VPS",
+    "Deployment"
+  ],
+  "entities": [
+    "FastAPI",
+    "Nginx",
+    "systemd"
+  ],
+  "search_aliases": [
+    "surprising VPS fix",
+    "FastAPI works manually but not in systemd",
+    "502 after all common fixes failed",
+    "wrong deployment working directory"
+  ],
+  "error_message": null,
+  "enrichment_version": 1
+}

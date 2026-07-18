@@ -1,0 +1,33 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Local data
+*.db
+*.db-shm
+*.db-wal
+data/
+
+# JavaScript / Chrome extension
+node_modules/
+dist/
+
+# Xcode / macOS
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.DS_Store
+
+# Editors
+.idea/
+.vscode/
