@@ -1,6 +1,6 @@
 # Developer A backend handoff
 
-Status: Layer 3 holder pending; Layer 4 polling contract available
+Status: Layer 3 macOS integration verified; Layer 4 polling contract available
 
 Last verified: 2026-07-18
 
@@ -60,20 +60,31 @@ and list GET.
 - Display the stable error `message`, but branch behavior on the error `code`.
 - Preserve `context_truncated` in Swift request and response models.
 
-## Non-production integration holder
+## Retired integration holder
 
-[`examples/macos-layer3-placeholder.swift`](examples/macos-layer3-placeholder.swift)
-contains copy-ready `Decodable` DTOs and an async list request. It is deliberately
-stored under `docs/`, outside any Xcode target, and is marked `TODO(Developer A)`.
-Developer A should adapt it to the app's existing networking and state model,
-then remove the holder after the real list and detail views pass.
+The temporary `docs/examples/macos-layer3-placeholder.swift` holder was removed
+after the production Xcode target implemented the shared DTOs, networking, list,
+and detail flow. The maintained client implementation now lives under
+`apps/macos/Recall/`.
 
 ## Confirmation needed
 
-Developer A should confirm:
+Developer A confirmed on 2026-07-18:
 
 1. Swift models decode the checked-in Capture response without invented fields.
-2. The macOS list displays the live record returned by the backend.
-3. Detail view preserves source and user-note separation.
+2. The macOS list displays live records returned by the backend.
+3. Detail view preserves source, surrounding context, and user-note separation.
+4. Clipboard capture returns `202`, appears immediately as `processing`, and is
+   read back through list and detail requests.
 
-That confirmation closes the shared Layer 3 vertical-slice gate.
+Evidence: the `Recall` scheme built with Xcode 26.2 and all 11 macOS contract,
+network, and store tests passed; the backend's 55 tests passed; a live
+API-seeded web Capture and a live macOS clipboard Capture were displayed in the
+app; server logs recorded `POST /v1/captures`, list, and detail requests. The
+temporary example holder was removed after this confirmation.
+
+This closes the shared Layer 3 vertical-slice gate. Layer 4 enrichment is now
+implemented by the backend: the app polls `processing` records to `ready` or
+`error` and preserves raw content in either case. A real OpenAI-backed `ready`
+proof still requires the untracked local API key recorded as blocker B-007;
+backend search remains later-layer work.

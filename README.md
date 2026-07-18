@@ -5,8 +5,9 @@ Recall is a macOS personal-memory capture tool that preserves source material,
 the user's reason for saving it, and an AI-generated contextual interpretation
 as separate, searchable layers.
 
-The repository has completed **Layer 2**: product and API contracts, the local
-backend foundation, and durable SQLite Capture storage are available.
+The repository has completed the first shared vertical slice: product and API
+contracts, the local backend foundation, durable SQLite Capture storage, and a
+working SwiftUI macOS client are available.
 
 ## Product baseline
 
@@ -64,8 +65,13 @@ It refreshes directly from the checked-in Markdown source every two seconds.
 
 ## Status
 
-Layers 0–3 backend work is committed. Layer 4 enrichment is implemented and
-deterministically tested; its real OpenAI proof awaits a local API key, while
-Developer A's macOS display confirmation remains open. Live evidence and
-blockers are tracked in
-[`docs/developer-b-checklist.md`](docs/developer-b-checklist.md).
+Layers 0–3 and the shared CRUD-to-macOS vertical slice are complete. The app can
+capture clipboard text with a personal note, persist it through the real
+backend, poll the enrichment lifecycle, and render the live list and separated
+detail fields. Layer 4 backend enrichment is implemented and deterministically
+tested; its real OpenAI proof awaits a local API key. Backend search, Chrome
+capture, and hybrid retrieval remain pending. Live evidence and blockers are
+tracked in [`docs/developer-b-checklist.md`](docs/developer-b-checklist.md).
+
+macOS setup, limitations, build commands, and the manual test matrix are in
+[`apps/macos/README.md`](apps/macos/README.md).

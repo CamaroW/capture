@@ -45,7 +45,7 @@ Update protocol:
 | 0 | Contracts and documentation | Complete | Schemas and fixtures validated; commit `e75f783` pushed |
 | 1 | Backend foundation | Complete | 11 tests passed; live `/health` returned contracted `200` response |
 | 2 | SQLite persistence | Complete | Commit `0622ad0` pushed; 30 tests and restart proof passed |
-| 3 | Capture CRUD and first integration | Backend complete / integration deferred | Commit `17264fe` pushed; D-013 holder awaits Developer A |
+| 3 | Capture CRUD and first integration | Complete | 55 backend tests plus live macOS API-seed and clipboard-capture display proof passed |
 | 4 | OpenAI enrichment | Backend implemented / live proof blocked | 94 tests pass, including release-wheel proof; real Responses API call awaits B-007 |
 | 5 | FTS5 keyword retrieval | Pending | Not started |
 | 6 | Chrome capture | Pending | Not started |
@@ -54,9 +54,9 @@ Update protocol:
 | 9 | Optional Apple on-device path | Gated | Decision D-008 accepted; prerequisites unmet |
 | 10 | Final freeze and submission | Pending | Not started |
 
-No hard blocker prevents Layer 3 work on the current branch. Layers 0–2 are
-verified in `origin/main` at `0622ad0`; D-012 remains explicitly outside
-product scope.
+Layer 4 implementation is present on `origin/main`; B-007 blocks only its live
+OpenAI proof. The shared Layer 3 macOS gate was confirmed on 2026-07-18, and
+D-012 remains explicitly outside product scope.
 
 ## Scope, schedule, and collaboration guardrails
 
@@ -315,7 +315,7 @@ Status: `[x]` complete
 
 # Layer 3 — Capture CRUD and first vertical slice
 
-Status: `[~]` backend complete; macOS integration deferred under D-013
+Status: `[x]` complete; backend and live macOS integration verified
 
 ## Build tasks
 
@@ -333,7 +333,8 @@ Status: `[~]` backend complete; macOS integration deferred under D-013
 - [x] Give Developer A the live base URL and curl evidence in
   `docs/developer-a-backend-handoff.md`.
 - [x] Add a non-production Swift decoding/list holder under `docs/examples/`
-  without modifying Developer A's Xcode project.
+  without modifying Developer A's Xcode project. The holder was removed after
+  Developer A completed the real target integration.
 
 ## Required tests
 
@@ -364,6 +365,8 @@ Status: `[~]` backend complete; macOS integration deferred under D-013
   selected characters, and 162 user-note characters.
 - [x] Live detail and list GETs returned the persisted fixture; live unknown-ID
   and empty-content requests returned the documented `404` and `422` envelopes.
+- [x] Developer A's Xcode 26.2 `Recall` scheme built cleanly; all 11 macOS
+  contract, API-client, and store tests passed on the macOS destination.
 
 ## Vertical-slice exit gate
 
@@ -375,8 +378,9 @@ curl POST Capture
 ```
 
 - [x] Backend portion passes.
-- [D] Developer A confirms macOS display integration. Deferred under D-013;
-  the placeholder does not satisfy the shared exit gate. See blocker B-006.
+- [x] Developer A confirmed live list/detail and clipboard POST integration on
+  2026-07-18; source, surrounding context, and user note render separately.
+  See the resolved B-006 entry and `docs/developer-a-backend-handoff.md`.
 - [x] Commit and push the verified backend slice and documented holder.
 
 ---
@@ -393,9 +397,9 @@ Status: `[~]` backend implemented and tested; live provider exit gate blocked
   access cannot be checked without the key; see B-007.
 - [x] Choose and record the background-execution mechanism. D-014 uses FastAPI
   `BackgroundTasks` plus the explicit retry endpoint.
-- [D] Agree with Developer A on baseline polling: every 1–2 seconds, stop on
-  `ready`/`error`, and cap polling at roughly 30–60 seconds. The contract is
-  documented; Developer A confirmation remains deferred under D-013/B-006.
+- [x] Agree with Developer A on baseline polling: every 1–2 seconds, stop on
+  `ready`/`error`, and cap polling at roughly 30–60 seconds. The macOS client
+  implements the contract and its terminal-state behavior is covered by tests.
 
 ## Build tasks
 
@@ -504,7 +508,8 @@ macOS Clipboard Capture
 
 - [~] Backend portion passes deterministic providers and failure simulation;
   real OpenAI proof remains blocked by B-007.
-- [D] Developer A confirms polling and state UI under D-013/B-006.
+- [x] Developer A implemented polling and `processing`/`ready`/`error` state UI;
+  a real provider-backed `ready` transition remains part of B-007's live proof.
 - [x] Commit the working Layer 4 slice.
 - [x] Push the working Layer 4 slice in implementation commit `84a0bb7`.
 
@@ -870,14 +875,12 @@ Use IDs `B-###`. Never delete an entry; append resolution and date.
 
 - Opened: 2026-07-18
 - Severity: Schedule risk
-- Status: Open
+- Status: Resolved 2026-07-18
 - Impact: The product plan's July 18 target includes FastAPI, health, SQLite,
-  Capture CRUD, curl proof, and macOS list integration. Layers 1–3 backend work
-  and curl proof are complete; macOS integration remains.
-- Resolution needed: Developer A completes the first macOS vertical-slice gate
-  using the checked-in handoff.
-- Does it block later backend work? No, but it blocks the shared vertical slice
-  and reduces buffer before the July 21 deadline.
+  Capture CRUD, curl proof, and macOS list integration.
+- Resolution: Developer A completed the first macOS vertical slice against the
+  checked-in handoff; B-006 records the live API and clipboard evidence.
+- Does it block later backend work? No. The shared vertical slice is complete.
 
 ## B-005 — Uncommitted documentation prevents a clean Layer 1 branch
 
@@ -893,19 +896,19 @@ Use IDs `B-###`. Never delete an entry; append resolution and date.
 - Does it block writing code? No technically; yes for the recommended clean
   branch and commit history.
 
-## B-006 — Developer A macOS display confirmation is pending
+## B-006 — Developer A macOS display confirmation
 
 - Opened: 2026-07-18
 - Severity: Coordination / Layer 3 exit gate
-- Status: Open / deferred to Developer A under D-013
+- Status: Resolved 2026-07-18
 - Impact: Developer B's POST → SQLite → GET/list flow passes, but the first
   shared vertical slice is not complete until the macOS app displays the live
   backend Capture.
-- Resolution needed: Developer A follows
-  `docs/developer-a-backend-handoff.md`, adapts or replaces the documented Swift
-  holder, confirms live list/detail display, and reports contract mismatches.
-- Does it block Layer 4 backend work? No under D-013. It still blocks marking
-  the shared Layer 3 vertical slice complete.
+- Resolution: Developer A created the real Xcode target, decoded the checked-in
+  fixture, displayed a live API-seeded web Capture, and completed a live macOS
+  clipboard `POST` followed by list/detail display. The source, context, and
+  user note remain separate. The temporary holder was removed.
+- Does it block Layer 4 backend work? No. The shared Layer 3 gate is complete.
 
 ## B-007 — OpenAI credential is unavailable for the Layer 4 live proof
 

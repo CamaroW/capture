@@ -26,8 +26,9 @@ addition made beyond [`product-plan.md`](product-plan.md).
 | D-010 | Standard-library virtual environment for the backend | Addition | Accepted |
 | D-011 | Numbered SQL migrations with the Python standard library | Addition | Accepted |
 | D-012 | Local live build-checklist dashboard | Addition | Accepted |
-| D-013 | Proceed past Layer 3 with a documented macOS integration holder | Addition | Accepted with open gate |
+| D-013 | Proceed past Layer 3 with a documented macOS integration holder | Addition | Accepted; gate closed |
 | D-014 | In-process enrichment tasks with an explicit retry endpoint | Clarification | Accepted |
+| D-015 | Build Week macOS client runtime and temporary search fallback | Addition | Accepted |
 
 ## D-001 — Localhost monorepo architecture
 
@@ -224,20 +225,20 @@ Recall product behavior.
 ## D-013 — Proceed past Layer 3 with a documented macOS integration holder
 
 - Classification: Addition / workflow exception
-- Status: Accepted with open gate
-- Product impact: None; no macOS behavior is claimed as implemented
+- Status: Accepted; gate closed 2026-07-18
+- Product impact: None; the holder was retired after the macOS gate passed
 - Schedule impact: Layer 4 backend work proceeds in parallel with Developer A
 
 The product-plan build order places the first macOS list integration before AI
-enrichment. At the user's direction, Developer B may begin Layer 4 after the
-Layer 3 backend is verified and pushed, while Developer A's display confirmation
-remains open. A non-production Swift example under `docs/examples/` documents
-the expected decoding and list request without modifying Developer A's Xcode
-project or pretending the shared vertical slice is complete.
+enrichment. At the user's direction, Developer B began Layer 4 after the Layer 3
+backend was verified and pushed while Developer A completed the display gate in
+parallel. A non-production Swift example under `docs/examples/` temporarily
+documented the expected decoding and list request without modifying Developer
+A's Xcode project or claiming the shared vertical slice was complete.
 
-The placeholder is not an exit-gate substitute. Developer A must still display
-the live Capture, preserve source/user-note separation, and remove or supersede
-the holder before the shared Layer 3 gate can be marked complete.
+Developer A subsequently displayed the live Capture, preserved source and user
+note separation, and replaced the holder with the maintained client under
+`apps/macos/`. The placeholder was removed when the shared Layer 3 gate closed.
 
 ## D-014 — In-process enrichment tasks with an explicit retry endpoint
 
@@ -261,6 +262,31 @@ added for P0.
 An abrupt process exit can still leave an in-process task unfinished. Automatic
 stale-processing recovery remains a documented post-MVP safeguard unless it
 becomes necessary for demo reliability.
+
+## D-015 — Build Week macOS client runtime and temporary search fallback
+
+- Classification: Addition
+- Status: Accepted
+- Product impact: None to the final API-owned search workflow
+- Schedule impact: Low
+
+The Build Week macOS target supports macOS 14 and later, remains a normal Dock
+application, and also provides a `MenuBarExtra`. It uses single-instance main
+and quick-capture windows. The prototype target does not enable App Sandbox or
+bundle the Python service; it permits localhost HTTP only through the narrow
+`NSAllowsLocalNetworking` transport exception. Production sandboxing,
+notarization, and backend packaging remain out of scope under product-plan P2.
+
+Until Developer B implements `GET /v1/search`, a `404` from that exact route
+causes the macOS client to show a visible availability notice and apply a
+case-insensitive all-terms substring filter to the newest 50 Captures already
+loaded from the backend. This degraded behavior performs no ranking, FTS, or
+semantic scoring, is never presented as the final search implementation, and
+is bypassed automatically whenever the contracted backend route succeeds.
+
+The temporary filter keeps the search UI testable while the two workstreams run
+in parallel. The backend remains the only persistence boundary and the only
+owner of production keyword, semantic, and hybrid retrieval.
 
 ## Pending decisions
 
