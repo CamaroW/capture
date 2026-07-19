@@ -131,8 +131,15 @@ h1 {
   -webkit-line-clamp: 5;
 }
 
-.note-label {
+.note-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: -9px;
+}
+
+.note-label {
   color: #304b3b;
   font-size: 12px;
   font-weight: 700;
@@ -155,6 +162,38 @@ textarea {
 textarea:focus {
   border-color: #4c8763;
   box-shadow: 0 0 0 3px rgb(76 135 99 / 14%);
+}
+
+textarea[data-invalid="true"] {
+  border-color: #b94a43;
+  box-shadow: 0 0 0 3px rgb(185 74 67 / 12%);
+}
+
+.capture-guidance {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: -10px;
+  color: #718078;
+  font-size: 11px;
+}
+
+.capture-guidance kbd {
+  display: inline-grid;
+  min-width: 18px;
+  min-height: 18px;
+  margin-right: 2px;
+  place-items: center;
+  border: 1px solid #cbd8ce;
+  border-radius: 5px;
+  background: rgb(255 255 255 / 72%);
+  font-family: inherit;
+  font-size: 10px;
+}
+
+#retry-warning {
+  color: #734d18;
+  text-align: right;
 }
 
 .status {

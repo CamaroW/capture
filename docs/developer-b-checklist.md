@@ -8,17 +8,17 @@ Last updated: 2026-07-19
 
 Current phase: shared P0 integration verified; Layer 10 submission work open
 
-Current branch: `main`
+Current branch: `agent/keyboard-first-capture`
 
-Last verified commit: final integration tree (see Git history)
+Last verified commit: current branch HEAD (see Git history)
 
 Canonical target: `main` via the verified `codex/final-integration` tree
 
 Integration inputs: hardened backend and Chrome tree at `5ea3d2a`, macOS client
 at `12862d3`, and current shared contracts/documentation. Their histories are
-combined in the final integration that restores `main`. The current tree passes
-186 backend tests, 44/44 stress scenarios, 13 extension tests, and 27 macOS
-tests.
+combined in the final integration that restores `main`. The current branch passes
+186 recorded backend tests, 44/44 recorded stress scenarios, 16 freshly run
+extension tests, and 27 recorded macOS tests.
 
 Last baseline cross-check: 2026-07-18 against all sections of
 `docs/product-plan.md`
@@ -56,9 +56,9 @@ Update protocol:
 | 3 | Capture CRUD and first integration | Complete | Backend CRUD plus live macOS list/detail/clipboard evidence close D-013 and B-006 |
 | 4 | OpenAI enrichment | Complete | Deterministic coverage plus real Responses API `processing → ready` proof resolve B-007 |
 | 5 | FTS5 keyword retrieval | Complete | Commit `d34a567` pushed; 119 tests and provider-off live/restart proof pass |
-| 6 | Chrome capture | Complete | 13 tests plus unpacked selected-text/no-selection Captures displayed in macOS resolve B-009 |
+| 6 | Chrome capture | Complete / shortcut polish awaiting manual check | 16 automated tests pass; earlier unpacked selected-text/no-selection Captures displayed in macOS resolve B-009 |
 | 7 | Embeddings and hybrid retrieval | Complete | Real embedding and vague semantic-query proof with non-null score resolve B-008 |
-| 8 | Reliability and demo readiness | P0 integration verified / backlog remains | Integrated tree passes 186 backend tests, 44/44 stress scenarios, 13 extension tests, and 27 macOS tests |
+| 8 | Reliability and demo readiness | P0 integration verified / backlog remains | Current branch retains 186 backend and 44/44 stress records, passes 16 extension tests, and retains 27 macOS test evidence |
 | 9 | Optional Apple on-device path | Gated | Decision D-008 accepted; prerequisites unmet |
 | 10 | Final freeze and submission | Pending | Not started |
 
@@ -821,6 +821,13 @@ authorized follow-up remediation and its exact contract additions.
 
 ## Build tasks
 
+- [x] Polish the Chrome demo path under D-025: add the extension shortcut,
+  keyboard submission, brief success confirmation with automatic close,
+  contract-limit validation, and stable retry identity. All 16 automated
+  extension tests and JavaScript/JSON syntax checks pass.
+- [ ] Load the improvement branch unpacked in Chrome and confirm the suggested
+  shortcut is available, `Command+Enter` submits once, the success state remains
+  legible, and the popup closes after its 700 ms confirmation.
 - [ ] Recover or visibly mark stale `processing` records after restart.
 - [x] Make repeated client submissions transactionally idempotent when
   `client_capture_id` is supplied, including concurrent retry coverage.
@@ -1672,3 +1679,19 @@ resolved errors.
   generated paths and verified that none remained.
 - Project impact: None; live verification had completed and no repository file
   was targeted.
+
+## E-025 — Review worktree lacked npm and backend test dependencies
+
+- Date: 2026-07-19
+- Status: Resolved for the changed extension scope
+- Symptom: `npm test` returned `command not found`, and the fresh detached
+  review worktree had no backend virtual environment or system `pytest`.
+- Cause: The review shell did not expose npm, and intentionally untracked
+  virtual environments do not follow a Git worktree.
+- Resolution: Loaded the bundled workspace runtime and ran the dependency-free
+  suite directly with Node; all 16 extension tests, JavaScript syntax checks,
+  and manifest/package JSON validation pass. No backend code changed, so the
+  prior 186-test and 44/44 stress evidence remains recorded rather than falsely
+  described as freshly rerun.
+- Project impact: The Chrome improvement is verified automatically. A real
+  unpacked-extension shortcut/auto-close check remains explicit above.

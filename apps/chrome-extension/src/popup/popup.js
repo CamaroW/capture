@@ -1,12 +1,15 @@
 import {
+  CAPTURE_LIMITS,
   RECALL_UNAVAILABLE_DETAIL,
   RECALL_UNAVAILABLE_TITLE,
   RecallApiError,
+  RecallCaptureValidationError,
   RecallUnavailableError,
   buildCaptureRequest,
   createCapture,
 } from "../api/recall.js";
 import { extractPageCapture } from "../content/capture.js";
+import { createCaptureAttempt } from "./capture-attempt.js";
 
 
 const pageTitle = document.querySelector("#page-title");
@@ -15,6 +18,8 @@ const preview = document.querySelector("#selection-preview");
 const previewCount = document.querySelector("#preview-count");
 const warning = document.querySelector("#selection-warning");
 const noteInput = document.querySelector("#user-note");
+const noteCount = document.querySelector("#note-count");
+const retryWarning = document.querySelector("#retry-warning");
 const saveButton = document.querySelector("#save-button");
 const statusBox = document.querySelector("#status");
 const statusTitle = document.querySelector("#status-title");
@@ -23,6 +28,10 @@ const statusDetail = document.querySelector("#status-detail");
 let activeTab = null;
 let extractedCapture = null;
 let draftKey = null;
+let isSubmitting = false;
+
+const captureAttempt = createCaptureAttempt(buildCaptureRequest);
+const SUCCESS_CLOSE_DELAY_MS = 700;
 
 
 function showStatus(kind, title, detail) {
@@ -46,6 +55,33 @@ function previewText(capture) {
     return capture.selectedText;
   }
   return capture.surroundingContext || capture.sourceTitle || "No page text found.";
+}
+
+
+function noteCharacterCount() {
+  return Array.from(noteInput.value).length;
+}
+
+
+function updateControls() {
+  const characterCount = noteCharacterCount();
+  const noteIsValid = characterCount <= CAPTURE_LIMITS.userNote;
+  noteCount.textContent = `${characterCount.toLocaleString()} / ${CAPTURE_LIMITS.userNote.toLocaleString()}`;
+  noteInput.dataset.invalid = String(!noteIsValid);
+  noteInput.disabled = isSubmitting || captureAttempt.isLocked;
+  retryWarning.hidden = !captureAttempt.isLocked;
+  saveButton.disabled = isSubmitting || !extractedCapture || !noteIsValid;
+}
+
+
+function setSubmitting(submitting) {
+  isSubmitting = submitting;
+  updateControls();
+}
+
+
+function closeAfterSuccess() {
+  window.setTimeout(() => window.close(), SUCCESS_CLOSE_DELAY_MS);
 }
 
 
@@ -107,7 +143,7 @@ async function initialize() {
       extractedCapture.selectedText,
     ).length.toLocaleString()} selected`;
     warning.hidden = extractedCapture.hasSelection;
-    saveButton.disabled = false;
+    updateControls();
     noteInput.focus();
   } catch (_error) {
     pageTitle.textContent = "This page cannot be captured";
@@ -122,23 +158,24 @@ async function initialize() {
 
 
 noteInput.addEventListener("input", () => {
+  updateControls();
   void persistDraft().catch(() => {
     // Keep the current textarea value even if draft storage is unavailable.
   });
 });
 
 
-saveButton.addEventListener("click", async () => {
+async function submitCapture() {
   if (!extractedCapture) {
     return;
   }
 
   hideStatus();
-  saveButton.disabled = true;
+  setSubmitting(true);
   saveButton.textContent = "Saving…";
 
   try {
-    const payload = buildCaptureRequest(extractedCapture, noteInput.value);
+    const payload = captureAttempt.request(extractedCapture, noteInput.value);
     await createCapture(payload);
     if (draftKey) {
       try {
@@ -149,9 +186,12 @@ saveButton.addEventListener("click", async () => {
     }
     showStatus("success", "Saved.", "Processing with AI…");
     saveButton.textContent = "Saved";
+    closeAfterSuccess();
   } catch (error) {
     if (error instanceof RecallUnavailableError) {
       showStatus("error", RECALL_UNAVAILABLE_TITLE, RECALL_UNAVAILABLE_DETAIL);
+    } else if (error instanceof RecallCaptureValidationError) {
+      showStatus("error", "This Capture is too long.", error.message);
     } else if (error instanceof RecallApiError) {
       showStatus("error", "Couldn’t save this Capture.", error.message);
     } else {
@@ -161,8 +201,25 @@ saveButton.addEventListener("click", async () => {
         "Try again in a moment.",
       );
     }
-    saveButton.disabled = false;
+    setSubmitting(false);
     saveButton.textContent = "Try again";
+  }
+}
+
+
+saveButton.addEventListener("click", () => {
+  void submitCapture();
+});
+
+
+document.addEventListener("keydown", (event) => {
+  if (
+    event.key === "Enter"
+    && (event.metaKey || event.ctrlKey)
+    && !saveButton.disabled
+  ) {
+    event.preventDefault();
+    void submitCapture();
   }
 });
 

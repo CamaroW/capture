@@ -96,7 +96,7 @@ generated origin to the untracked root `.env` and restart the backend.
 
 The hardened backend, Chrome extension, and macOS client have been assembled and
 verified in one integration tree. The current tree passes 186 backend tests,
-all 44 deterministic stress scenarios, 13 extension tests, and 27 macOS tests.
+all 44 deterministic stress scenarios, 16 extension tests, and 27 macOS tests.
 Live verification covers provider-off keyword fallback, real OpenAI enrichment
 and embeddings, semantic retrieval with a non-null score, and both selected-text
 and no-selection Chrome Captures appearing as ready cards in the macOS app.

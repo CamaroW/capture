@@ -1,6 +1,13 @@
 export const RECALL_BASE_URL = "http://127.0.0.1:8765";
 export const RECALL_UNAVAILABLE_TITLE = "Recall is not running.";
 export const RECALL_UNAVAILABLE_DETAIL = "Open the Recall app and try again.";
+export const CAPTURE_LIMITS = Object.freeze({
+  sourceTitle: 500,
+  sourceUrl: 2_048,
+  selectedText: 12_000,
+  surroundingContext: 20_000,
+  userNote: 4_000,
+});
 
 
 export class RecallUnavailableError extends Error {
@@ -21,6 +28,34 @@ export class RecallApiError extends Error {
 }
 
 
+export class RecallCaptureValidationError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "RecallCaptureValidationError";
+  }
+}
+
+
+function unicodeLength(value) {
+  return Array.from(String(value ?? "")).length;
+}
+
+
+function truncateUnicode(value, maximum) {
+  return Array.from(String(value ?? "")).slice(0, maximum).join("");
+}
+
+
+function requireWithinLimit(value, fieldName, maximum) {
+  const length = unicodeLength(value);
+  if (length > maximum) {
+    throw new RecallCaptureValidationError(
+      `${fieldName} can use up to ${maximum.toLocaleString()} characters; this value has ${length.toLocaleString()}.`,
+    );
+  }
+}
+
+
 export function buildCaptureRequest(
   extracted,
   userNote,
@@ -30,12 +65,30 @@ export function buildCaptureRequest(
   } = {},
 ) {
   const note = String(userNote ?? "");
+  requireWithinLimit(note, "Your note", CAPTURE_LIMITS.userNote);
+  requireWithinLimit(
+    extracted.selectedText,
+    "The selected text",
+    CAPTURE_LIMITS.selectedText,
+  );
+  requireWithinLimit(
+    extracted.surroundingContext,
+    "The surrounding context",
+    CAPTURE_LIMITS.surroundingContext,
+  );
+
+  const sourceTitle = String(extracted.sourceTitle ?? "");
+  const sourceUrl = String(extracted.sourceUrl ?? "");
   return {
     client_capture_id: createId(),
     source_type: "web",
     source_app: "Google Chrome",
-    source_title: extracted.sourceTitle || null,
-    source_url: extracted.sourceUrl || null,
+    source_title: sourceTitle
+      ? truncateUnicode(sourceTitle, CAPTURE_LIMITS.sourceTitle)
+      : null,
+    source_url: sourceUrl && unicodeLength(sourceUrl) <= CAPTURE_LIMITS.sourceUrl
+      ? sourceUrl
+      : null,
     selected_text: extracted.selectedText,
     surrounding_context: extracted.surroundingContext || null,
     context_truncated: Boolean(extracted.contextTruncated),

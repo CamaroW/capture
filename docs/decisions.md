@@ -38,6 +38,7 @@ addition made beyond [`product-plan.md`](product-plan.md).
 | D-022 | Build Week macOS runtime and narrow search fallback | Addition | Accepted |
 | D-023 | Restore runnable integrated main | Addition | Accepted; deterministic verification complete |
 | D-024 | Bounded literal-substring retrieval fallback | Clarification | Accepted |
+| D-025 | Keyboard-first Chrome capture polish | Addition | Accepted by user direction |
 
 ## D-001 — Localhost monorepo architecture
 
@@ -517,6 +518,27 @@ This closes the observed cases where `RecallSearchSmokeTest` could not be found
 with `Recall`, or a Chinese memory could not be found with a literal character
 fragment. Semantic retrieval remains independent and may add candidates when a
 real embedding provider is configured.
+
+## D-025 — Keyboard-first Chrome capture polish
+
+- Classification: Addition
+- Status: Accepted by user direction
+- Product impact: Reduces the primary Chrome capture path to a shortcut, an
+  optional note, and one keyboard submission
+- Schedule impact: Low
+
+The Chrome extension declares an `_execute_action` command with a suggested
+`Command+Shift+Y` shortcut on macOS. The existing popup remains the only capture
+UI and preserves the product-plan separation between source material and the
+optional user note. `Command+Enter` or `Control+Enter` submits the Capture,
+success remains visible briefly, and the popup then closes automatically.
+
+The popup enforces the shared contract limits before sending. Uneditable page
+titles are safely bounded and overlong optional URLs are omitted rather than
+submitted as invalid or misleading truncated links. Once a valid request begins,
+the open popup freezes and reuses that exact payload and `client_capture_id` for
+all retries. This complements backend idempotency without caching selected
+private source content in extension storage.
 
 ## Pending decisions
 

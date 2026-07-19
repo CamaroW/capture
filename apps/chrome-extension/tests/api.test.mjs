@@ -4,12 +4,15 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 import {
+  CAPTURE_LIMITS,
   RECALL_BASE_URL,
   RecallApiError,
+  RecallCaptureValidationError,
   RecallUnavailableError,
   buildCaptureRequest,
   createCapture,
 } from "../src/api/recall.js";
+import { createCaptureAttempt } from "../src/popup/capture-attempt.js";
 
 
 const extensionRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -57,6 +60,62 @@ test("empty note and empty context use the contract null values", () => {
 
   assert.equal(payload.user_note, null);
   assert.equal(payload.surrounding_context, null);
+});
+
+
+test("request builder enforces user-authored and source-content limits", () => {
+  assert.throws(
+    () => buildCaptureRequest(extracted(), "🧠".repeat(CAPTURE_LIMITS.userNote + 1)),
+    RecallCaptureValidationError,
+  );
+  assert.throws(
+    () => buildCaptureRequest(extracted({
+      selectedText: "x".repeat(CAPTURE_LIMITS.selectedText + 1),
+    }), ""),
+    RecallCaptureValidationError,
+  );
+  assert.throws(
+    () => buildCaptureRequest(extracted({
+      surroundingContext: "x".repeat(CAPTURE_LIMITS.surroundingContext + 1),
+    }), ""),
+    RecallCaptureValidationError,
+  );
+});
+
+
+test("request builder bounds optional page metadata without breaking capture", () => {
+  const payload = buildCaptureRequest(extracted({
+    sourceTitle: "🧠".repeat(CAPTURE_LIMITS.sourceTitle + 1),
+    sourceUrl: `https://example.com/${"x".repeat(CAPTURE_LIMITS.sourceUrl)}`,
+  }), "", {
+    createId: () => "id",
+    now: () => new Date(0),
+  });
+
+  assert.equal(Array.from(payload.source_title).length, CAPTURE_LIMITS.sourceTitle);
+  assert.equal(payload.source_title.endsWith("🧠"), true);
+  assert.equal(payload.source_url, null);
+});
+
+
+test("one popup attempt reuses its exact payload across retries", () => {
+  let builds = 0;
+  const attempt = createCaptureAttempt((source, note) => {
+    builds += 1;
+    return { source, note, client_capture_id: "stable-id" };
+  });
+
+  const first = attempt.request("first source", "original note");
+  const retry = attempt.request("changed source", "edited note");
+
+  assert.equal(attempt.isLocked, true);
+  assert.equal(builds, 1);
+  assert.equal(retry, first);
+  assert.deepEqual(retry, {
+    source: "first source",
+    note: "original note",
+    client_capture_id: "stable-id",
+  });
 });
 
 
@@ -133,6 +192,10 @@ test("manifest has only the approved permissions and fixed backend access", asyn
   ]);
   assert.deepEqual(manifest.host_permissions, ["http://127.0.0.1:8765/*"]);
   assert.equal(manifest.action.default_popup, "src/popup/popup.html");
+  assert.equal(
+    manifest.commands._execute_action.suggested_key.mac,
+    "Command+Shift+Y",
+  );
   assert.equal("content_scripts" in manifest, false);
 });
 
@@ -144,8 +207,12 @@ test("popup includes no-selection, saved, processing, and offline states", async
   ]);
 
   assert.match(html, /No text selected; saving page context\./);
+  assert.match(html, /⌘/);
+  assert.match(html, /Retry uses the original source and note\./);
   assert.match(popupSource, /"Saved\."/);
   assert.match(popupSource, /"Processing with AI…"/);
   assert.match(popupSource, /RECALL_UNAVAILABLE_TITLE/);
   assert.match(popupSource, /chrome\.storage\.local\.remove/);
+  assert.match(popupSource, /event\.metaKey \|\| event\.ctrlKey/);
+  assert.match(popupSource, /window\.close\(\)/);
 });
