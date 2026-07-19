@@ -6,14 +6,20 @@ import json
 import logging
 from functools import lru_cache
 from importlib.resources import files
-from typing import Any, Protocol
+from typing import Annotated, Any, Protocol
 
 from openai import OpenAI
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError
 
 from app.embeddings import (
     EmbeddingProvider,
     build_embedding_input,
+)
+from app.limits import (
+    ENRICHMENT_LIST_ITEM_MAX_LENGTH,
+    ENRICHMENT_LIST_MAX_ITEMS,
+    ENRICHMENT_TEXT_MAX_LENGTH,
+    ENRICHMENT_TITLE_MAX_LENGTH,
 )
 from app.models import CaptureRecord, EnrichmentUpdate
 from app.repository import CaptureNotFoundError, CaptureRepository
@@ -64,20 +70,36 @@ Use the language most appropriate to the user's note and captured content.
 """
 
 
+EnrichmentTitle = Annotated[
+    str,
+    StringConstraints(max_length=ENRICHMENT_TITLE_MAX_LENGTH),
+]
+EnrichmentText = Annotated[
+    str,
+    StringConstraints(max_length=ENRICHMENT_TEXT_MAX_LENGTH),
+]
+EnrichmentListItem = Annotated[
+    str,
+    StringConstraints(max_length=ENRICHMENT_LIST_ITEM_MAX_LENGTH),
+]
+
+
 class EnrichmentPayload(BaseModel):
     """Validated provider output matching enriched_capture.schema.json."""
 
     model_config = ConfigDict(extra="forbid")
 
-    title: str
-    summary: str
-    problem: str
-    key_insight: str
-    why_saved: str
-    caveats: list[str]
-    tags: list[str]
-    entities: list[str]
-    search_aliases: list[str]
+    title: EnrichmentTitle
+    summary: EnrichmentText
+    problem: EnrichmentText
+    key_insight: EnrichmentText
+    why_saved: EnrichmentText
+    caveats: list[EnrichmentListItem] = Field(max_length=ENRICHMENT_LIST_MAX_ITEMS)
+    tags: list[EnrichmentListItem] = Field(max_length=ENRICHMENT_LIST_MAX_ITEMS)
+    entities: list[EnrichmentListItem] = Field(max_length=ENRICHMENT_LIST_MAX_ITEMS)
+    search_aliases: list[EnrichmentListItem] = Field(
+        max_length=ENRICHMENT_LIST_MAX_ITEMS
+    )
 
 
 class EnrichmentFailure(RuntimeError):
@@ -91,8 +113,11 @@ class EnrichmentRefusalError(EnrichmentFailure):
 
 
 class InvalidEnrichmentOutputError(EnrichmentFailure):
-    code = "invalid_output"
-    safe_message = "AI enrichment returned an invalid result."
+    code = "invalid_model_output"
+    safe_message = (
+        "The configured AI model returned an invalid enrichment result. "
+        "Try a compatible model or retry."
+    )
 
 
 class EnrichmentProviderError(EnrichmentFailure):
@@ -131,8 +156,13 @@ def build_user_input(capture: CaptureRecord) -> str:
     )
 
 
-def _normalized_payload(payload: EnrichmentPayload) -> EnrichmentPayload:
-    values = payload.model_dump()
+def _normalized_payload(payload: object) -> EnrichmentPayload:
+    try:
+        validated = EnrichmentPayload.model_validate(payload)
+    except ValidationError as error:
+        raise InvalidEnrichmentOutputError from error
+
+    values = validated.model_dump()
     for field in ("title", "summary", "problem", "key_insight", "why_saved"):
         value = values[field].strip()
         if not value:
@@ -207,8 +237,8 @@ class OpenAIEnrichmentProvider:
             raise InvalidEnrichmentOutputError
 
         try:
-            payload = EnrichmentPayload.model_validate(json.loads(output_text))
-        except (json.JSONDecodeError, ValidationError) as error:
+            payload = json.loads(output_text)
+        except json.JSONDecodeError as error:
             raise InvalidEnrichmentOutputError from error
         return _normalized_payload(payload)
 
@@ -233,7 +263,18 @@ class EnrichmentService:
             return
 
         try:
-            result = self.provider.enrich(capture)
+            result = _normalized_payload(self.provider.enrich(capture))
+        except ValidationError:
+            logger.warning(
+                "Enrichment returned invalid model output for Capture %s",
+                capture_id,
+            )
+            self._store_error(
+                capture_id,
+                InvalidEnrichmentOutputError.safe_message,
+                capture.enrichment_version,
+            )
+            return
         except EnrichmentFailure as error:
             logger.warning(
                 "Enrichment failed for Capture %s (%s)",

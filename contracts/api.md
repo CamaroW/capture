@@ -32,9 +32,12 @@ The client may omit optional fields instead of sending `null`. At least one of
 
 ### Text limits
 
+- `source_app`: at most 200 Unicode characters.
+- `source_title`: at most 500 Unicode characters.
+- `source_url`: at most 2,048 Unicode characters.
 - `selected_text`: at most 12,000 Unicode characters.
 - `surrounding_context`: at most 20,000 Unicode characters.
-- User notes are preserved in full for the MVP.
+- `user_note`: at most 4,000 Unicode characters.
 - If a client truncates context, it sends `context_truncated: true`.
 - Navigation, cookie notices, and footer boilerplate should be removed before
   submission when practical.
@@ -53,6 +56,10 @@ See [`examples/capture-request.json`](examples/capture-request.json).
 
 The initial response is `202 Accepted`. OpenAI failure must never roll back or
 delete the original Capture.
+
+When `client_capture_id` is present, creation is idempotent: retries return the
+first persisted Capture and do not queue a second enrichment task. The field is
+optional, so requests without it always create a new Capture.
 
 ## Capture representation
 
@@ -140,6 +147,13 @@ The model must not claim a method worked unless the user note says it worked.
 When no note is supplied, `why_saved` must explicitly say that no personal
 reason was provided rather than invent one.
 
+Every provider, including a future Apple/local provider, passes through the
+same provider-neutral validation boundary. Empty, `null`, structurally invalid,
+generic, or oversized output is classified as `invalid_model_output`; the
+Capture reaches `error` with a safe message and can never become empty-ready or
+remain processing indefinitely. Enrichment scalar fields are capped at 2,000
+characters (title: 200); list fields are capped at 20 items of 300 characters.
+
 ## Stable embedding input — product-plan §12.1
 
 Only a successfully enriched Capture is embedded. The exact projection is:
@@ -192,6 +206,10 @@ regeneration of stored embeddings.
 
 Returns `200 OK` when the process and database are available. OpenAI can be
 unconfigured without making the local persistence API unhealthy.
+
+The database probe checks migration state, SQLite quick integrity, and the JSON
+array columns required to decode stored Captures. It returns `503` with
+`database: "error"` when those checks fail.
 
 ```json
 {
@@ -248,7 +266,11 @@ contract does not use WebSockets.
 
 - Success: `200 OK`
 - `limit`: integer, default `20`, range `1...100`
+- `q`: at most 512 Unicode characters; ASCII control characters are rejected
+  with `422 validation_error`.
 - Empty or whitespace-only `q`: returns recent Captures.
+- Keyword retrieval first requires all terms, then retries with any term only
+  when the strict pass returns no rows.
 - Exact technical identifiers receive higher keyword weight.
 - If query embedding fails, results fall back to keyword scoring.
 - With a compatible Capture and query vector, `score` combines semantic,

@@ -710,7 +710,7 @@ def run_retrieval_stress(root: Path, results: Results) -> None:
         )
         search_case("emoji_only_query", "🧠🤖", None, None)
         search_case("punctuation_only_query", "!!! ??? :::", None, None)
-        search_case("nul_query", "ERR\x00MODULE", None, None, expected_status=200)
+        search_case("nul_query", "ERR\x00MODULE", None, None, expected_status=422)
 
         huge_query = " ".join(f"absent-token-{index}" for index in range(2_000))
         search_case(

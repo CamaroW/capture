@@ -5,10 +5,11 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
-from typing import Protocol
+from threading import Lock
+from typing import Literal, Protocol
 from urllib.parse import urlparse
 
-from app.embeddings import EmbeddingProvider, cosine_similarity
+from app.embeddings import EmbeddingProvider, normalized_embedding
 from app.models import CaptureRecord
 
 
@@ -33,6 +34,9 @@ URL_PATTERN = re.compile(r"https?://", re.IGNORECASE)
 
 
 logger = logging.getLogger(__name__)
+_semantic_cache_lock = Lock()
+_semantic_cache_key: tuple[str, int, int] | None = None
+_semantic_cache: tuple[tuple[CaptureRecord, tuple[float, ...]], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,11 +63,16 @@ class SearchRepository(Protocol):
 
     def list_ready_captures(self) -> list[CaptureRecord]: ...
 
+    def semantic_revision(self) -> tuple[str, int, int]: ...
 
-def build_fts_match_query(query: str) -> str:
+
+def build_fts_match_query(
+    query: str,
+    operator: Literal["AND", "OR"] = "AND",
+) -> str:
     """Treat client query segments as escaped phrases, never FTS syntax."""
 
-    return " AND ".join(
+    return f" {operator} ".join(
         f'"{segment.replace(chr(34), chr(34) * 2)}"'
         for segment in query.split()
     )
@@ -166,7 +175,6 @@ def metadata_bonus(capture: CaptureRecord, query: str) -> float:
             or hostname.casefold() in query_words
         )
     )
-
     app = " ".join((capture.source_app or "").casefold().split())
     app_match = bool(
         app
@@ -195,6 +203,31 @@ def metadata_bonus(capture: CaptureRecord, query: str) -> float:
         sum((domain_match, app_match, tag_match, error_code_match)) / 4.0,
         6,
     )
+
+
+def _cached_semantic_candidates(
+    repository: SearchRepository,
+) -> tuple[tuple[CaptureRecord, tuple[float, ...]], ...]:
+    """Decode and normalize the single local database once per write revision."""
+
+    global _semantic_cache_key, _semantic_cache
+    revision = repository.semantic_revision()
+    if revision == _semantic_cache_key:
+        return _semantic_cache
+
+    with _semantic_cache_lock:
+        if revision == _semantic_cache_key:
+            return _semantic_cache
+        candidates = []
+        for capture in repository.list_ready_captures():
+            if capture.embedding is None:
+                continue
+            unit_vector = normalized_embedding(capture.embedding)
+            if unit_vector is not None:
+                candidates.append((capture, unit_vector))
+        _semantic_cache = tuple(candidates)
+        _semantic_cache_key = revision
+        return _semantic_cache
 
 
 class HybridSearchService:
@@ -237,17 +270,37 @@ class HybridSearchService:
             logger.warning("Query embedding failed; returning keyword results")
             return self._keyword_fallback(keyword_matches, limit)
 
+        query_unit_vector = normalized_embedding(query_embedding)
+        if query_unit_vector is None:
+            logger.warning("Query embedding is unusable; returning keyword results")
+            return self._keyword_fallback(keyword_matches, limit)
+
         candidates = {match.capture.id: match.capture for match in keyword_matches}
         keyword_scores = {
             match.capture.id: match.keyword_score for match in keyword_matches
         }
         semantic_scores: dict[str, float] = {}
-        for capture in self.repository.list_ready_captures():
-            if capture.embedding is None:
+        for capture, capture_unit_vector in _cached_semantic_candidates(
+            self.repository
+        ):
+            if len(capture_unit_vector) != len(query_unit_vector):
                 continue
-            semantic_score = cosine_similarity(capture.embedding, query_embedding)
-            if semantic_score is None:
-                continue
+            semantic_score = round(
+                min(
+                    1.0,
+                    max(
+                        0.0,
+                        sum(
+                            left * right
+                            for left, right in zip(
+                                capture_unit_vector,
+                                query_unit_vector,
+                            )
+                        ),
+                    ),
+                ),
+                6,
+            )
             candidates[capture.id] = capture
             semantic_scores[capture.id] = semantic_score
 

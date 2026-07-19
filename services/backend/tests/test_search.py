@@ -14,6 +14,7 @@ from app.search import (
     is_technical_query,
     metadata_bonus,
 )
+from app.embeddings import cosine_similarity
 
 
 def new_capture(**overrides: object) -> NewCapture:
@@ -314,8 +315,8 @@ def test_vague_personal_query_retrieves_semantic_only_capture(
 
     assert matches[0].capture.id == intended.id
     assert matches[0].semantic_score == 1.0
-    assert matches[0].keyword_score == 0.0
-    assert matches[0].score == 0.55
+    assert matches[0].keyword_score == 1.0
+    assert matches[0].score == 0.9
     assert {match.capture.id for match in matches} == {intended.id, unrelated.id}
     assert provider.inputs == ["thing that finally solved my server problem"]
 
@@ -501,3 +502,7 @@ def test_technical_query_detection(query: str) -> None:
 
 def test_plain_language_query_is_not_technical() -> None:
     assert is_technical_query("thing that finally solved my server problem") is False
+
+
+def test_cosine_similarity_handles_extreme_finite_vectors() -> None:
+    assert cosine_similarity([1e308, 1e308], [1e308, 1e308]) == pytest.approx(1.0)

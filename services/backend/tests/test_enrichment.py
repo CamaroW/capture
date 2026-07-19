@@ -310,7 +310,11 @@ def test_service_stores_valid_result_without_modifying_source(tmp_path: Path) ->
     "error,expected_message",
     [
         (EnrichmentRefusalError(), "The AI provider refused this Capture."),
-        (InvalidEnrichmentOutputError(), "AI enrichment returned an invalid result."),
+        (
+            InvalidEnrichmentOutputError(),
+            "The configured AI model returned an invalid enrichment result. "
+            "Try a compatible model or retry.",
+        ),
         (EnrichmentProviderError(), "AI enrichment could not be completed. Retry later."),
         (RuntimeError("raw provider trace"), "AI enrichment could not be completed. Retry later."),
     ],

@@ -12,11 +12,18 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    StrictBool,
     TypeAdapter,
     field_validator,
     model_validator,
 )
 
+from app.limits import (
+    SOURCE_APP_MAX_LENGTH,
+    SOURCE_TITLE_MAX_LENGTH,
+    SOURCE_URL_MAX_LENGTH,
+    USER_NOTE_MAX_LENGTH,
+)
 from app.models import CaptureRecord, NewCapture
 
 
@@ -36,13 +43,16 @@ class ApiModel(BaseModel):
 class CaptureCreateRequest(ApiModel):
     client_capture_id: str | None = None
     source_type: Literal["web", "clipboard"]
-    source_app: str | None = None
-    source_title: str | None = None
-    source_url: str | None = None
+    source_app: str | None = Field(default=None, max_length=SOURCE_APP_MAX_LENGTH)
+    source_title: str | None = Field(
+        default=None,
+        max_length=SOURCE_TITLE_MAX_LENGTH,
+    )
+    source_url: str | None = Field(default=None, max_length=SOURCE_URL_MAX_LENGTH)
     selected_text: str = Field(max_length=12_000)
     surrounding_context: str | None = Field(default=None, max_length=20_000)
-    context_truncated: bool = False
-    user_note: str | None = None
+    context_truncated: StrictBool = False
+    user_note: str | None = Field(default=None, max_length=USER_NOTE_MAX_LENGTH)
     captured_at: str
 
     @field_validator("client_capture_id")

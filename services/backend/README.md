@@ -99,6 +99,12 @@ cannot outlive the approximately 60-second client polling window. Responses
 must report `completed`; incomplete results are stored as a safe retryable
 provider error rather than accepted as ready data.
 
+Every provider result is revalidated at the service boundary. Empty, `null`,
+partial, generic, or oversized model output is classified as
+`invalid_model_output` and moves the Capture to a terminal `error` state with a
+safe message; it cannot produce an empty `ready` Capture or leave one stuck in
+`processing`. This same rule applies to a future Apple/local provider.
+
 If OpenAI is not configured, creation still returns the persisted `processing`
 representation and the background task moves the stored Capture to a visible
 `error` state without changing source content. After configuring the untracked
@@ -143,16 +149,19 @@ curl --get --data-urlencode 'q=WorkingDirectory' \
 
 After enrichment validates, the backend builds the exact §12.1 projection and
 stores one vector as an internal SQLite JSON array. Search embeds a non-empty
-query with the same configured model, calculates cosine similarity over all
-`ready` Captures in Python, and combines semantic, normalized keyword, and
-metadata scores. Normal queries use `0.55 / 0.35 / 0.10`; technical identifiers
-use `0.45 / 0.50 / 0.05`.
+query with the same configured model, calculates cosine similarity using a
+write-invalidated normalized-vector cache, and combines semantic, normalized
+keyword, and metadata scores. Normal queries use `0.55 / 0.35 / 0.10`;
+technical identifiers use `0.45 / 0.50 / 0.05`.
 
 The response follows `contracts/api.md`. Empty or omitted `q` returns recent
 Captures. If OpenAI, the query vector, or a Capture vector is unavailable,
 Layer 5 FTS behavior remains available and `semantic_score` is `null` for the
 affected result. Client input is escaped as FTS data, so quotes and operators
-cannot become query syntax; see decisions D-015 and D-017.
+cannot become query syntax. Search queries are capped at 512 characters and
+control characters are rejected. If strict all-term FTS produces no rows, a
+relaxed any-term pass keeps provider-off natural-language retrieval usable; see
+decisions D-015 and D-017.
 
 ## Test
 
@@ -174,6 +183,9 @@ bulk and concurrent writes, FTS edge cases, provider failures, realistic vector
 dimensions, corrupt rows, CORS, and restart durability. The dated findings and
 known limitations are recorded in
 `../../docs/backend-stress-report-2026-07-18.md`.
+
+The post-hardening run passes all 44 scenarios. The Python regression suite has
+181 passing tests.
 
 ## Configuration
 

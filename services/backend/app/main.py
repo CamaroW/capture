@@ -12,7 +12,8 @@ from uuid import UUID
 from fastapi import BackgroundTasks, Depends, FastAPI, Query, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import AfterValidator, BaseModel
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api_errors import error_response
 from app.api_models import (
@@ -38,6 +39,7 @@ from app.enrichment import (
     OpenAIEnrichmentProvider,
     mark_enrichment_not_configured,
 )
+from app.limits import SEARCH_QUERY_MAX_LENGTH
 from app.repository import (
     CaptureAlreadyProcessingError,
     CaptureNotFoundError,
@@ -56,6 +58,19 @@ class HealthResponse(BaseModel):
     openai_configured: bool
 
 
+def require_safe_search_query(value: str) -> str:
+    if any(ord(character) < 32 for character in value):
+        raise ValueError("q must not contain control characters")
+    return value
+
+
+SearchQuery = Annotated[
+    str,
+    Query(max_length=SEARCH_QUERY_MAX_LENGTH),
+    AfterValidator(require_safe_search_query),
+]
+
+
 def check_database(database_path: Path) -> Literal["ok", "error"]:
     """Open the configured SQLite file and execute a connectivity probe."""
 
@@ -65,8 +80,37 @@ def check_database(database_path: Path) -> Literal["ok", "error"]:
             connection.row_factory = sqlite3.Row
             result = connection.execute("SELECT 1").fetchone()
             schema_is_current = database_schema_is_current(connection)
+            quick_check = connection.execute("PRAGMA quick_check(1)").fetchone()
+            corrupt_json = connection.execute(
+                """
+                SELECT 1 FROM captures
+                WHERE
+                    CASE WHEN json_valid(caveats_json)
+                        THEN json_type(caveats_json) != 'array' ELSE 1 END
+                    OR CASE WHEN json_valid(tags_json)
+                        THEN json_type(tags_json) != 'array' ELSE 1 END
+                    OR CASE WHEN json_valid(entities_json)
+                        THEN json_type(entities_json) != 'array' ELSE 1 END
+                    OR CASE WHEN json_valid(search_aliases_json)
+                        THEN json_type(search_aliases_json) != 'array' ELSE 1 END
+                    OR (
+                        embedding_json IS NOT NULL
+                        AND CASE WHEN json_valid(embedding_json)
+                            THEN json_type(embedding_json) != 'array' ELSE 1 END
+                    )
+                LIMIT 1
+                """
+            ).fetchone()
         query_succeeded = result is not None and result[0] == 1
-        return "ok" if query_succeeded and schema_is_current else "error"
+        integrity_ok = quick_check is not None and quick_check[0] == "ok"
+        return (
+            "ok"
+            if query_succeeded
+            and schema_is_current
+            and integrity_ok
+            and corrupt_json is None
+            else "error"
+        )
     except (OSError, sqlite3.Error):
         logger.exception("SQLite health probe failed for %s", database_path)
         return "error"
@@ -138,6 +182,31 @@ async def request_validation_error(
     )
 
 
+@app.exception_handler(StarletteHTTPException)
+async def malformed_http_request(
+    _: Request,
+    error: StarletteHTTPException,
+) -> JSONResponse:
+    if error.status_code == status.HTTP_400_BAD_REQUEST:
+        return error_response(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            code="validation_error",
+            message="Request does not satisfy the API contract.",
+            details=[
+                {
+                    "field": "body",
+                    "message": "Request body is not valid UTF-8 JSON.",
+                    "type": "invalid_json",
+                }
+            ],
+        )
+    return error_response(
+        status_code=error.status_code,
+        code="http_error",
+        message="The requested backend resource is unavailable.",
+    )
+
+
 @app.exception_handler(Exception)
 async def internal_server_error(request: Request, error: Exception) -> JSONResponse:
     logger.error(
@@ -187,7 +256,12 @@ def create_capture(
         Depends(get_embedding_provider),
     ],
 ) -> CaptureResponse:
-    record = repository.create(request.to_storage_model(), status="processing")
+    record, created = repository.create_or_get(
+        request.to_storage_model(),
+        status="processing",
+    )
+    if not created:
+        return CaptureResponse.from_record(record)
     if provider is None:
         background_tasks.add_task(
             mark_enrichment_not_configured,
@@ -223,7 +297,7 @@ def search_captures(
         EmbeddingProvider | None,
         Depends(get_embedding_provider),
     ],
-    q: str = "",
+    q: SearchQuery = "",
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> SearchResponse:
     matches = HybridSearchService(repository, embedding_provider).search(

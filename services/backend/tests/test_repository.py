@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -179,14 +180,37 @@ def test_database_constraint_rejects_invalid_status(tmp_path: Path) -> None:
             )
 
 
-def test_duplicate_client_capture_id_is_not_forced_unique(tmp_path: Path) -> None:
+def test_duplicate_client_capture_id_returns_first_capture(tmp_path: Path) -> None:
     repository = CaptureRepository(tmp_path / "recall.db")
     client_capture_id = "149f51e1-8c18-42d4-9778-3f3b062527a2"
 
-    first = repository.create(new_capture(client_capture_id=client_capture_id))
-    second = repository.create(new_capture(client_capture_id=client_capture_id))
+    first, first_created = repository.create_or_get(
+        new_capture(client_capture_id=client_capture_id)
+    )
+    second, second_created = repository.create_or_get(
+        new_capture(client_capture_id=client_capture_id)
+    )
 
-    assert first.id != second.id
+    assert first_created is True
+    assert second_created is False
+    assert second.id == first.id
+
+
+def test_concurrent_duplicate_client_capture_id_creates_one_row(tmp_path: Path) -> None:
+    repository = CaptureRepository(tmp_path / "recall.db")
+    client_capture_id = "149f51e1-8c18-42d4-9778-3f3b062527a2"
+
+    def create() -> tuple[str, bool]:
+        record, created = repository.create_or_get(
+            new_capture(client_capture_id=client_capture_id)
+        )
+        return record.id, created
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        results = list(executor.map(lambda _: create(), range(20)))
+
+    assert len({capture_id for capture_id, _ in results}) == 1
+    assert sum(created for _, created in results) == 1
 
 
 def test_missing_capture_update_rolls_back(tmp_path: Path) -> None:

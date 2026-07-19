@@ -106,24 +106,35 @@ class OpenAIEmbeddingProvider:
             raise EmbeddingProviderError from error
 
 
-def cosine_similarity(left: list[float], right: list[float]) -> float | None:
-    """Return a finite cosine score in ``0...1`` or ``None`` if incompatible."""
+def normalized_embedding(value: list[float]) -> tuple[float, ...] | None:
+    """Return an overflow-safe unit vector or ``None`` for unusable input."""
 
-    if not left or len(left) != len(right):
+    if not value:
         return None
     if any(
-        isinstance(value, bool)
-        or not isinstance(value, (int, float))
-        or not math.isfinite(float(value))
-        for value in (*left, *right)
+        isinstance(component, bool)
+        or not isinstance(component, (int, float))
+        or not math.isfinite(float(component))
+        for component in value
     ):
         return None
 
-    dot_product = sum(float(a) * float(b) for a, b in zip(left, right))
-    left_norm = math.sqrt(sum(float(value) ** 2 for value in left))
-    right_norm = math.sqrt(sum(float(value) ** 2 for value in right))
-    if left_norm == 0.0 or right_norm == 0.0:
+    components = tuple(float(component) for component in value)
+    norm = math.hypot(*components)
+    if norm == 0.0 or not math.isfinite(norm):
+        return None
+    return tuple(component / norm for component in components)
+
+
+def cosine_similarity(left: list[float], right: list[float]) -> float | None:
+    """Return a finite cosine score in ``0...1`` or ``None`` if incompatible."""
+
+    if len(left) != len(right):
+        return None
+    normalized_left = normalized_embedding(left)
+    normalized_right = normalized_embedding(right)
+    if normalized_left is None or normalized_right is None:
         return None
 
-    cosine = dot_product / (left_norm * right_norm)
+    cosine = sum(a * b for a, b in zip(normalized_left, normalized_right))
     return round(min(1.0, max(0.0, cosine)), 6)

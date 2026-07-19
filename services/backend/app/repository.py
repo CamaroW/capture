@@ -7,7 +7,7 @@ import sqlite3
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, get_args
+from typing import Any, Literal, get_args
 from uuid import uuid4
 
 from app.database import apply_migrations, database_connection
@@ -128,6 +128,17 @@ class CaptureRepository:
         *,
         status: CaptureStatus = "captured",
     ) -> CaptureRecord:
+        record, _ = self.create_or_get(capture, status=status)
+        return record
+
+    def create_or_get(
+        self,
+        capture: NewCapture,
+        *,
+        status: CaptureStatus = "captured",
+    ) -> tuple[CaptureRecord, bool]:
+        """Create once per optional client ID, serialized with other writes."""
+
         if status not in VALID_CAPTURE_STATUSES:
             raise ValueError(f"Invalid Capture status: {status}")
 
@@ -153,20 +164,35 @@ class CaptureRepository:
         with database_connection(self.database_path) as connection:
             try:
                 connection.execute("BEGIN IMMEDIATE")
-                connection.execute(
-                    """
-                    INSERT INTO captures (
-                        id, client_capture_id, created_at, updated_at, captured_at,
-                        status, source_type, source_app, source_title, source_url,
-                        selected_text, surrounding_context, context_truncated,
-                        user_note
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    values,
-                )
-                row = connection.execute(
-                    "SELECT * FROM captures WHERE id = ?", (capture_id,)
-                ).fetchone()
+                row = None
+                created = True
+                if capture.client_capture_id is not None:
+                    row = connection.execute(
+                        """
+                        SELECT * FROM captures
+                        WHERE client_capture_id = ?
+                        ORDER BY created_at ASC
+                        LIMIT 1
+                        """,
+                        (capture.client_capture_id,),
+                    ).fetchone()
+                    created = row is None
+
+                if row is None:
+                    connection.execute(
+                        """
+                        INSERT INTO captures (
+                            id, client_capture_id, created_at, updated_at, captured_at,
+                            status, source_type, source_app, source_title, source_url,
+                            selected_text, surrounding_context, context_truncated,
+                            user_note
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        values,
+                    )
+                    row = connection.execute(
+                        "SELECT * FROM captures WHERE id = ?", (capture_id,)
+                    ).fetchone()
                 connection.commit()
             except Exception:
                 connection.rollback()
@@ -174,7 +200,7 @@ class CaptureRepository:
 
         if row is None:  # pragma: no cover - SQLite returned a successful insert.
             raise RuntimeError("Capture insert completed without a readable row")
-        return _row_to_record(row)
+        return _row_to_record(row), created
 
     def get(self, capture_id: str) -> CaptureRecord | None:
         with database_connection(self.database_path) as connection:
@@ -208,13 +234,21 @@ class CaptureRepository:
             ).fetchall()
         return [_row_to_record(row) for row in rows]
 
+    def semantic_revision(self) -> tuple[str, int, int]:
+        """Return a cheap cache key for the single local SQLite database."""
+
+        stat = self.database_path.stat()
+        return (str(self.database_path), stat.st_mtime_ns, stat.st_size)
+
     def search_captures(
         self,
         *,
         query: str,
         limit: int,
     ) -> list[KeywordSearchMatch]:
-        normalized_query = query.strip()
+        normalized_query = "".join(
+            " " if ord(character) < 32 else character for character in query
+        ).strip()
         if not normalized_query:
             return [
                 KeywordSearchMatch(capture=record, keyword_score=0.0)
@@ -225,24 +259,32 @@ class CaptureRepository:
             max(limit * FTS_CANDIDATE_MULTIPLIER, limit),
             FTS_MAX_CANDIDATES,
         )
-        match_query = build_fts_match_query(normalized_query)
-        with database_connection(self.database_path) as connection:
-            rows = connection.execute(
-                """
-                SELECT captures.*,
-                    bm25(
-                        captures_fts,
-                        0.0, 6.0, 5.0, 2.0, 4.0, 6.0, 3.0,
-                        4.0, 5.0, 3.0, 6.0, 6.0, 5.0
-                    ) AS fts_rank
-                FROM captures_fts
-                JOIN captures ON captures.id = captures_fts.capture_id
-                WHERE captures_fts MATCH ?
-                ORDER BY fts_rank ASC, captures.created_at DESC
-                LIMIT ?
-                """,
-                (match_query, candidate_limit),
-            ).fetchall()
+        def execute_match(operator: Literal["AND", "OR"]) -> list[sqlite3.Row]:
+            match_query = build_fts_match_query(
+                normalized_query,
+                operator=operator,
+            )
+            with database_connection(self.database_path) as connection:
+                return connection.execute(
+                    """
+                    SELECT captures.*,
+                        bm25(
+                            captures_fts,
+                            0.0, 6.0, 5.0, 2.0, 4.0, 6.0, 3.0,
+                            4.0, 5.0, 3.0, 6.0, 6.0, 5.0
+                        ) AS fts_rank
+                    FROM captures_fts
+                    JOIN captures ON captures.id = captures_fts.capture_id
+                    WHERE captures_fts MATCH ?
+                    ORDER BY fts_rank ASC, captures.created_at DESC
+                    LIMIT ?
+                    """,
+                    (match_query, candidate_limit),
+                ).fetchall()
+
+        rows = execute_match("AND")
+        if not rows and len(normalized_query.split()) > 1:
+            rows = execute_match("OR")
 
         candidates = [
             (_row_to_record(row), max(0.0, -float(row["fts_rank"])))

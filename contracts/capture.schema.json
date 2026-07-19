@@ -22,19 +22,22 @@
       "type": [
         "string",
         "null"
-      ]
+      ],
+      "maxLength": 200
     },
     "source_title": {
       "type": [
         "string",
         "null"
-      ]
+      ],
+      "maxLength": 500
     },
     "source_url": {
       "type": [
         "string",
         "null"
       ],
+      "maxLength": 2048,
       "format": "uri"
     },
     "selected_text": {
@@ -58,7 +61,8 @@
       "type": [
         "string",
         "null"
-      ]
+      ],
+      "maxLength": 4000
     },
     "captured_at": {
       "type": "string",

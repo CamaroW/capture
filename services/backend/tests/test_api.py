@@ -71,6 +71,14 @@ class FailedEmbeddingProvider:
         raise TimeoutError("private embedding trace")
 
 
+class InvalidOutputProvider:
+    def __init__(self, output: object) -> None:
+        self.output = output
+
+    def enrich(self, _capture) -> object:
+        return self.output
+
+
 def test_api_models_match_checked_in_contract_fields() -> None:
     request_schema = json.loads(
         (REPOSITORY_ROOT / "contracts" / "capture.schema.json").read_text(
@@ -169,6 +177,44 @@ def test_configured_provider_enriches_capture_after_create(
     assert loaded["tags"] == fixture_enrichment().tags
     assert loaded["selected_text"] == created["selected_text"]
     assert loaded["user_note"] == created["user_note"]
+
+
+@pytest.mark.parametrize("output", [None, "", {"title": "partial"}])
+def test_invalid_model_output_reaches_terminal_error_state(
+    api_client: tuple[TestClient, Path],
+    output: object,
+) -> None:
+    client, _ = api_client
+    app.dependency_overrides[get_enrichment_provider] = lambda: InvalidOutputProvider(
+        output
+    )
+
+    created = client.post("/v1/captures", json=fixture_request()).json()
+    loaded = client.get(f"/v1/captures/{created['id']}").json()
+
+    assert loaded["status"] == "error"
+    assert loaded["error_message"] == (
+        "The configured AI model returned an invalid enrichment result. "
+        "Try a compatible model or retry."
+    )
+    assert loaded["ai_title"] is None
+
+
+def test_duplicate_client_capture_id_is_idempotent(
+    api_client: tuple[TestClient, Path],
+) -> None:
+    client, database_path = api_client
+    payload = fixture_request()
+
+    first = client.post("/v1/captures", json=payload)
+    second = client.post("/v1/captures", json=payload)
+
+    assert first.status_code == second.status_code == 202
+    assert second.json()["id"] == first.json()["id"]
+    assert CaptureRepository(database_path, initialize=False).list_captures(
+        limit=10,
+        offset=0,
+    ) == [CaptureRepository(database_path, initialize=False).get(first.json()["id"])]
 
 
 def test_missing_key_rejects_manual_enrichment_with_stable_error(
@@ -321,9 +367,9 @@ def test_search_returns_semantic_result_after_embedding_pipeline(
     assert response.status_code == 200
     result = response.json()["results"][0]
     assert result["capture"]["id"] == created["id"]
-    assert result["keyword_score"] == 0.0
+    assert result["keyword_score"] == 1.0
     assert result["semantic_score"] == 1.0
-    assert result["score"] == 0.55
+    assert result["score"] == 0.9
 
 
 def test_search_query_embedding_failure_returns_keyword_fallback(
@@ -411,8 +457,8 @@ def test_search_limit_is_enforced(
     assert_validation_error(client.get(f"/v1/search?{query}"))
 
 
-@pytest.mark.parametrize("user_note", ["", "长备注" * 20_000])
-def test_empty_and_long_user_notes_round_trip(
+@pytest.mark.parametrize("user_note", ["", "长备注" * 1_000])
+def test_empty_and_bounded_user_notes_round_trip(
     api_client: tuple[TestClient, Path],
     user_note: str,
 ) -> None:
@@ -430,6 +476,16 @@ def test_empty_and_long_user_notes_round_trip(
     assert created.status_code == 202
     assert loaded.status_code == 200
     assert loaded.json()["user_note"] == user_note
+
+
+def test_overlong_user_note_is_rejected(
+    api_client: tuple[TestClient, Path],
+) -> None:
+    client, _ = api_client
+    payload = fixture_request()
+    payload["user_note"] = "x" * 4_001
+
+    assert_validation_error(client.post("/v1/captures", json=payload))
 
 
 @pytest.mark.parametrize(
@@ -482,8 +538,12 @@ def test_unknown_request_field_fails(api_client: tuple[TestClient, Path]) -> Non
 @pytest.mark.parametrize(
     "field,value",
     [
+        ("source_app", "x" * 201),
+        ("source_title", "x" * 501),
+        ("source_url", "https://example.com/" + "x" * 2_029),
         ("selected_text", "x" * 12_001),
         ("surrounding_context", "x" * 20_001),
+        ("user_note", "x" * 4_001),
     ],
 )
 def test_overlong_content_fails_visibly(
@@ -517,6 +577,42 @@ def test_invalid_formatted_fields_fail(
     payload[field] = value
 
     assert_validation_error(client.post("/v1/captures", json=payload))
+
+
+@pytest.mark.parametrize("value", [1, "false"])
+def test_context_truncated_requires_a_json_boolean(
+    api_client: tuple[TestClient, Path],
+    value: object,
+) -> None:
+    client, _ = api_client
+    payload = fixture_request()
+    payload["context_truncated"] = value
+
+    assert_validation_error(client.post("/v1/captures", json=payload))
+
+
+@pytest.mark.parametrize("query", ["x" * 513, "safe\x00unsafe"])
+def test_unsafe_search_query_is_rejected(
+    api_client: tuple[TestClient, Path],
+    query: str,
+) -> None:
+    client, _ = api_client
+
+    assert_validation_error(client.get("/v1/search", params={"q": query}))
+
+
+def test_invalid_utf8_body_uses_validation_envelope(
+    api_client: tuple[TestClient, Path],
+) -> None:
+    client, _ = api_client
+
+    response = client.post(
+        "/v1/captures",
+        content=b'{"selected_text":"\xff"}',
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert_validation_error(response)
 
 
 def test_list_is_newest_first_and_paginated(

@@ -266,3 +266,57 @@ restart checks.
 
 This report records defects only. No production behavior was changed during the
 stress-test task.
+
+## Remediation run — `fix/backend-stress-hardening`
+
+The follow-up hardening branch resolves all 13 breakpoint groups without adding
+an external service or vector dependency. The original observations above are
+retained as the pre-fix baseline.
+
+Verification after the fixes:
+
+- Python regression suite: **181 passed, 0 failed**;
+- adversarial harness: **44 passed, 0 breaks** in 17.896 seconds;
+- 1,000 Capture/FTS rows remained synchronized with SQLite integrity `ok`;
+- the 1,505-card / 500 realistic-vector single scan completed in 826.369 ms;
+- 12 concurrent realistic-vector scans completed with 2,473.740 ms median and
+  3,024.309 ms maximum latency; and
+- bytecode compilation completed successfully for `app`, `tests`, and `tools`.
+
+| Finding | Resolution |
+| --- | --- |
+| ST-001 | Added explicit app/title/URL/note limits matching the checked-in request schema. |
+| ST-002 | `client_capture_id` is now transactionally idempotent, including concurrent retries. |
+| ST-003 | `context_truncated` now requires a JSON boolean. |
+| ST-004 | Invalid UTF-8 now returns the stable `422 validation_error` envelope. |
+| ST-005 | FTS retries with escaped `OR` terms only when the strict `AND` pass is empty. |
+| ST-006/ST-007 | Search rejects control characters and caps `q` at 512 characters. |
+| ST-008 | Ready vectors are decoded and overflow-safely normalized once per database write revision. |
+| ST-009/ST-010 | Provider-neutral validation maps empty, `null`, partial, or generic output to terminal `error` with failure code `invalid_model_output`. |
+| ST-011 | Enrichment strings, arrays, and array items have checked-in limits. |
+| ST-012 | Cosine normalization uses `math.hypot` and rejects unusable vectors. |
+| ST-013 | Health runs SQLite quick integrity plus stored JSON-array checks. |
+
+### Hardening-run execution errors
+
+These setup errors did not execute application tests and are recorded rather
+than hidden:
+
+- A pytest launch from the repository root produced 10 collection errors with
+  `ModuleNotFoundError: No module named 'app'`. It was rerun from
+  `services/backend`, where the configured Python path applies.
+- `.venv/bin/pytest` was then attempted inside the stress worktree, which does
+  not contain its own virtual environment, and exited `127`. Verification used
+  the dependency-complete interpreter from the main worktree against the stress
+  worktree source.
+- The first compile-only command was issued one directory too high and printed
+  `Can't list 'app'`, `tests`, and `tools`. It was rerun from
+  `services/backend` and completed with exit code `0`.
+- The first post-fix harness run reported 43 passes and one apparent break
+  because the harness still expected NUL queries to return `200`. The contract
+  intentionally rejects them with `422`; after correcting that stale expected
+  value, the unchanged backend passed 44/44.
+
+Remaining gates are unchanged: no real Responses API or embedding request was
+made, and power-loss, disk-full, read-only-filesystem, multi-process writer, and
+real-socket Uvicorn behavior remain outside this deterministic local harness.
