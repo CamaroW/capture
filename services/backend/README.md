@@ -165,8 +165,11 @@ Layer 5 FTS behavior remains available and `semantic_score` is `null` for the
 affected result. Client input is escaped as FTS data, so quotes and operators
 cannot become query syntax. Search queries are capped at 512 characters and
 control characters are rejected. If strict all-term FTS produces no rows, a
-relaxed any-term pass keeps provider-off natural-language retrieval usable; see
-decisions D-015 and D-017.
+relaxed any-term pass keeps provider-off natural-language retrieval usable. A
+bounded literal-substring pass is merged with tokenized candidates to recover
+partial identifiers and CJK fragments that FTS may omit. Results are deduped
+under the existing candidate cap and FTS-ranked rows retain priority; see
+decisions D-015, D-021, and D-024.
 
 ## Test
 
@@ -189,8 +192,9 @@ dimensions, corrupt rows, CORS, and restart durability. The dated findings and
 known limitations are recorded in
 `../../docs/backend-stress-report-2026-07-18.md`.
 
-The post-hardening run passes all 44 scenarios. The Python regression suite has
-181 passing tests.
+The post-hardening run passes all 44 scenarios. The current integrated Python
+regression suite has 186 passing tests; the 181-test result remains the
+historical hardening-branch checkpoint.
 
 ## Configuration
 
@@ -203,4 +207,4 @@ The post-hardening run passes all 44 scenarios. The Python regression suite has
 | `RECALL_PORT` | `8765` | Backend port, from 1 through 65535 |
 | `RECALL_DATABASE_PATH` | `./data/recall.db` | SQLite file, relative to repository root |
 | `RECALL_LOG_LEVEL` | `INFO` | Python logging level |
-| `RECALL_CORS_ORIGINS` | unset | Comma-separated allowed origins for a later client layer |
+| `RECALL_CORS_ORIGINS` | unset | Comma-separated exact origins allowed for the Chrome client |

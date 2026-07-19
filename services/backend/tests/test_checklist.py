@@ -49,6 +49,9 @@ class BalancedHtmlParser(HTMLParser):
 
 @pytest.fixture(autouse=True)
 def isolated_database(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    # The dashboard does not need a provider and must remain testable when a
+    # developer has configured the repository-root .env.
+    monkeypatch.setenv("OPENAI_API_KEY", "")
     monkeypatch.setenv("RECALL_DATABASE_PATH", str(tmp_path / "recall.db"))
     get_settings.cache_clear()
     yield

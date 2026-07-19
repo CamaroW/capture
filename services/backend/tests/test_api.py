@@ -31,7 +31,10 @@ def api_client(
     tmp_path: Path,
 ) -> Iterator[tuple[TestClient, Path]]:
     database_path = tmp_path / "recall.db"
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    # Environment variables override the repository-root .env.  An explicit
+    # empty value keeps this fixture deterministic on developer machines that
+    # have configured a real provider key.
+    monkeypatch.setenv("OPENAI_API_KEY", "")
     monkeypatch.setenv("RECALL_DATABASE_PATH", str(database_path))
     get_settings.cache_clear()
     with TestClient(app) as client:
@@ -591,7 +594,10 @@ def test_context_truncated_requires_a_json_boolean(
     assert_validation_error(client.post("/v1/captures", json=payload))
 
 
-@pytest.mark.parametrize("query", ["x" * 513, "safe\x00unsafe"])
+@pytest.mark.parametrize(
+    "query",
+    ["x" * 513, "safe\x00unsafe", "safe\x7funsafe"],
+)
 def test_unsafe_search_query_is_rejected(
     api_client: tuple[TestClient, Path],
     query: str,

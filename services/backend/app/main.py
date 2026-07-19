@@ -59,7 +59,7 @@ class HealthResponse(BaseModel):
 
 
 def require_safe_search_query(value: str) -> str:
-    if any(ord(character) < 32 for character in value):
+    if any(ord(character) < 32 or ord(character) == 127 for character in value):
         raise ValueError("q must not contain control characters")
     return value
 

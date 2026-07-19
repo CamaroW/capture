@@ -11,7 +11,9 @@ from app.main import app
 
 @pytest.fixture(autouse=True)
 def isolated_settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    # Explicitly override a developer's repository-root .env for tests that
+    # exercise the provider-off contract.
+    monkeypatch.setenv("OPENAI_API_KEY", "")
     monkeypatch.setenv("RECALL_DATABASE_PATH", str(tmp_path / "recall.db"))
     get_settings.cache_clear()
     yield

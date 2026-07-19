@@ -72,6 +72,13 @@ struct CaptureListView: View {
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(.primary.opacity(0.08), lineWidth: 1)
             }
+
+            if let searchError = store.searchError {
+                Label(searchError, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(16)
     }

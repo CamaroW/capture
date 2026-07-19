@@ -56,6 +56,7 @@ struct MenuBarContentView: View {
         case .checking: "Checking local service…"
         case let .connected(openAIConfigured):
             openAIConfigured ? "Connected · AI ready" : "Connected · AI not configured"
+        case .degraded: "Local storage unavailable"
         case .disconnected: "Local service offline"
         }
     }
@@ -64,6 +65,7 @@ struct MenuBarContentView: View {
         switch store.connectionState {
         case .checking: .orange
         case .connected: .green
+        case .degraded: .red
         case .disconnected: .red
         }
     }

@@ -67,8 +67,18 @@ struct QuickCaptureView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Why does this matter to you?")
-                    .font(.headline)
+                HStack {
+                    Text("Why does this matter to you?")
+                        .font(.headline)
+                    Spacer()
+                    Text("\(draft.noteCharacterCount.formatted()) / \(RecallStore.maximumUserNoteLength.formatted())")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(
+                            draft.noteCharacterCount > RecallStore.maximumUserNoteLength
+                                ? .red
+                                : .secondary
+                        )
+                }
                 TextField(
                     "Optional note — the context only you know",
                     text: noteBinding,
@@ -77,8 +87,14 @@ struct QuickCaptureView: View {
                 .lineLimit(2...4)
                 .textFieldStyle(.roundedBorder)
                 .focused($noteIsFocused)
+                .disabled(store.isQuickCaptureRetryLocked)
                 .onSubmit {
                     save()
+                }
+                if store.isQuickCaptureRetryLocked {
+                    Text("A previous save may have reached the backend. Retry uses the original note; cancel and capture again to edit it safely.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -105,13 +121,17 @@ struct QuickCaptureView: View {
                             .controlSize(.small)
                             .frame(minWidth: 48)
                     } else {
-                        Text("Save")
+                        Text(store.isQuickCaptureRetryLocked ? "Retry" : "Save")
                             .frame(minWidth: 48)
                     }
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
-                .disabled(store.isSubmittingCapture)
+                .disabled(
+                    store.isSubmittingCapture
+                        || draft.characterCount > RecallStore.maximumSelectedTextLength
+                        || draft.noteCharacterCount > RecallStore.maximumUserNoteLength
+                )
             }
         }
         .padding(24)
@@ -138,7 +158,12 @@ struct QuickCaptureView: View {
     private var noteBinding: Binding<String> {
         Binding(
             get: { store.quickCaptureDraft?.userNote ?? "" },
-            set: { store.quickCaptureDraft?.userNote = $0 }
+            set: { newValue in
+                store.quickCaptureDraft?.userNote = newValue
+                if newValue.unicodeScalars.count <= RecallStore.maximumUserNoteLength {
+                    store.quickCaptureError = nil
+                }
+            }
         )
     }
 

@@ -14,7 +14,8 @@ EXTENSION_ORIGIN = "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 @pytest.fixture(autouse=True)
 def isolated_settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    # Keep CORS tests independent from an optional local provider key.
+    monkeypatch.setenv("OPENAI_API_KEY", "")
     monkeypatch.setenv("RECALL_DATABASE_PATH", str(tmp_path / "recall.db"))
     monkeypatch.setenv(
         "RECALL_CORS_ORIGINS",

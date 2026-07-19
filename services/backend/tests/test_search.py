@@ -165,6 +165,49 @@ def test_chinese_query_finds_mixed_language_content(tmp_path: Path) -> None:
     assert [match.capture.id for match in matches] == [capture.id]
 
 
+@pytest.mark.parametrize("query", ["Recall", "成功", "功"])
+def test_keyword_search_recovers_literal_fragments_missed_by_fts(
+    tmp_path: Path,
+    query: str,
+) -> None:
+    repository = CaptureRepository(tmp_path / "recall.db")
+    capture = repository.create(
+        new_capture(
+            selected_text="RecallSearchSmokeTest",
+            user_note="这是我唯一成功的修复方法。",
+        ),
+        status="error",
+    )
+
+    matches = repository.search_captures(query=query, limit=20)
+
+    assert [match.capture.id for match in matches] == [capture.id]
+    assert matches[0].keyword_score == 1.0
+
+
+def test_literal_fragments_are_merged_with_existing_fts_matches(
+    tmp_path: Path,
+) -> None:
+    repository = CaptureRepository(tmp_path / "recall.db")
+    fragment_capture = repository.create(
+        new_capture(selected_text="RecallSearchSmokeTest"),
+        status="error",
+    )
+    token_capture = repository.create(
+        new_capture(selected_text="Recall is also a complete token here."),
+        status="error",
+    )
+
+    matches = repository.search_captures(query="Recall", limit=20)
+
+    assert {match.capture.id for match in matches} == {
+        fragment_capture.id,
+        token_capture.id,
+    }
+    scores = {match.capture.id: match.keyword_score for match in matches}
+    assert scores[token_capture.id] > scores[fragment_capture.id]
+
+
 def test_empty_query_returns_recent_captures_and_no_result_is_empty(
     tmp_path: Path,
 ) -> None:

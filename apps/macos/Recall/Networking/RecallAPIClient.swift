@@ -32,7 +32,7 @@ struct LiveRecallAPIClient: RecallAPIClient, Sendable {
     }
 
     func health() async throws -> HealthResponse {
-        try await send(path: ["health"], expectedStatusCodes: [200])
+        try await send(path: ["health"], expectedStatusCodes: [200, 503])
     }
 
     func createCapture(_ request: CaptureCreateRequest) async throws -> Capture {

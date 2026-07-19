@@ -1,18 +1,39 @@
 import Foundation
 
 struct QuickCaptureDraft: Equatable, Sendable {
+    let clientCaptureID: String
+    let capturedAt: String
     let selectedText: String
     let sourceApplication: String?
     var userNote: String = ""
 
+    init(
+        selectedText: String,
+        sourceApplication: String?,
+        userNote: String = "",
+        clientCaptureID: String = UUID().uuidString.lowercased(),
+        capturedAt: String = CaptureCreateRequest.currentTimestamp()
+    ) {
+        self.clientCaptureID = clientCaptureID
+        self.capturedAt = capturedAt
+        self.selectedText = selectedText
+        self.sourceApplication = sourceApplication
+        self.userNote = userNote
+    }
+
     var characterCount: Int {
         selectedText.unicodeScalars.count
+    }
+
+    var noteCharacterCount: Int {
+        userNote.unicodeScalars.count
     }
 }
 
 enum BackendConnectionState: Equatable, Sendable {
     case checking
     case connected(openAIConfigured: Bool)
+    case degraded
     case disconnected
 }
 
@@ -38,6 +59,9 @@ struct AppNotice: Identifiable, Equatable, Sendable {
 @MainActor
 final class RecallStore: ObservableObject {
     static let maximumSelectedTextLength = 12_000
+    static let maximumUserNoteLength = 4_000
+    static let maximumSearchQueryLength = 512
+    static let maximumSourceApplicationLength = 200
 
     @Published private(set) var captures: [Capture] = []
     @Published var selectedCaptureID: String?
@@ -45,6 +69,7 @@ final class RecallStore: ObservableObject {
     @Published private(set) var connectionState: BackendConnectionState = .checking
     @Published private(set) var loadState: LibraryLoadState = .idle
     @Published private(set) var isSearching = false
+    @Published private(set) var searchError: String?
     @Published var quickCaptureDraft: QuickCaptureDraft?
     @Published private(set) var isSubmittingCapture = false
     @Published var quickCaptureError: String?
@@ -55,16 +80,31 @@ final class RecallStore: ObservableObject {
     private let clipboardService: any ClipboardCaptureServing
     private var libraryCaptures: [Capture] = []
     private var pollingTasks: [String: Task<Void, Never>] = [:]
+    private var pollingGenerations: [String: UUID] = [:]
     private var hasStarted = false
     private var searchEndpointUnavailable = false
     private var didExplainSearchFallback = false
+    private var searchGeneration = 0
+    private var attemptedQuickCaptureRequest: CaptureCreateRequest?
+    private let foregroundRefreshIntervalNanoseconds: UInt64
+    private let pollingIntervalNanoseconds: UInt64
+    private let pollingAttemptLimit: Int
+    private let pollingTimeoutNanoseconds: UInt64
 
     init(
         client: any RecallAPIClient,
-        clipboardService: any ClipboardCaptureServing
+        clipboardService: any ClipboardCaptureServing,
+        foregroundRefreshIntervalNanoseconds: UInt64 = 5_000_000_000,
+        pollingIntervalNanoseconds: UInt64 = 2_000_000_000,
+        pollingAttemptLimit: Int = 30,
+        pollingTimeoutNanoseconds: UInt64 = 60_000_000_000
     ) {
         self.client = client
         self.clipboardService = clipboardService
+        self.foregroundRefreshIntervalNanoseconds = foregroundRefreshIntervalNanoseconds
+        self.pollingIntervalNanoseconds = pollingIntervalNanoseconds
+        self.pollingAttemptLimit = pollingAttemptLimit
+        self.pollingTimeoutNanoseconds = pollingTimeoutNanoseconds
     }
 
     convenience init(client: any RecallAPIClient = LiveRecallAPIClient()) {
@@ -80,6 +120,14 @@ final class RecallStore: ObservableObject {
             ?? libraryCaptures.first(where: { $0.id == selectedCaptureID })
     }
 
+    var activePollingCaptureIDs: Set<String> {
+        Set(pollingTasks.keys)
+    }
+
+    var isQuickCaptureRetryLocked: Bool {
+        attemptedQuickCaptureRequest != nil
+    }
+
     func start() async {
         guard !hasStarted else {
             await refresh()
@@ -92,15 +140,20 @@ final class RecallStore: ObservableObject {
     }
 
     func checkHealth() async {
-        if connectionState == .disconnected {
+        if connectionState == .disconnected || connectionState == .degraded {
             connectionState = .checking
         }
         do {
             let response = try await client.health()
-            connectionState = .connected(openAIConfigured: response.openAIConfigured)
+            if response.status == "ok" && response.database == "ok" {
+                connectionState = .connected(openAIConfigured: response.openAIConfigured)
+            } else {
+                connectionState = .degraded
+            }
         } catch is CancellationError {
             return
         } catch {
+            guard !Self.isCancellation(error) else { return }
             connectionState = .disconnected
         }
     }
@@ -123,7 +176,9 @@ final class RecallStore: ObservableObject {
                 // A low-frequency list refresh discovers captures created by the
                 // Chrome extension. Captures created by this app use the focused
                 // two-second detail poll in `beginPolling` instead.
-                try await Task.sleep(nanoseconds: 5_000_000_000)
+                try await Task.sleep(
+                    nanoseconds: foregroundRefreshIntervalNanoseconds
+                )
             } catch {
                 return
             }
@@ -131,12 +186,12 @@ final class RecallStore: ObservableObject {
             guard !Task.isCancelled else { return }
             if query.nonEmptyTrimmed == nil {
                 await loadLibrary(initial: false, silent: true)
-            } else if !searchEndpointUnavailable {
-                await search(debounce: false, silent: true)
-            } else {
+            } else if searchEndpointUnavailable {
                 await loadLibrary(initial: false, silent: true)
                 captures = localMatches(for: query)
                 preserveSelection()
+            } else if !isSearching {
+                await search(debounce: false, silent: true)
             }
         }
     }
@@ -158,10 +213,9 @@ final class RecallStore: ObservableObject {
             preserveSelection()
             connectionState = connectedStatePreservingAIConfiguration()
             loadState = .loaded
-        } catch is CancellationError {
-            return
         } catch {
-            connectionState = .disconnected
+            guard !Self.isCancellation(error) else { return }
+            updateConnectionState(after: error)
             if initial || libraryCaptures.isEmpty {
                 loadState = .failed(error.recallUserMessage)
             } else if !silent {
@@ -171,14 +225,33 @@ final class RecallStore: ObservableObject {
     }
 
     func search(debounce: Bool = true, silent: Bool = false) async {
+        searchGeneration &+= 1
+        let generation = searchGeneration
         let submittedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !submittedQuery.isEmpty else {
+            searchError = nil
+            isSearching = false
             captures = libraryCaptures
             preserveSelection()
             if libraryCaptures.isEmpty {
                 await loadLibrary(initial: loadState == .idle)
             }
             return
+        }
+
+        if let validationMessage = Self.searchValidationMessage(for: submittedQuery) {
+            searchError = validationMessage
+            isSearching = false
+            captures = []
+            preserveSelection()
+            return
+        }
+
+        isSearching = true
+        defer {
+            if generation == searchGeneration {
+                isSearching = false
+            }
         }
 
         if debounce {
@@ -188,34 +261,44 @@ final class RecallStore: ObservableObject {
                 return
             }
         }
-        guard submittedQuery == query.trimmingCharacters(in: .whitespacesAndNewlines) else {
+        guard generation == searchGeneration,
+              !Task.isCancelled,
+              submittedQuery == query.trimmingCharacters(in: .whitespacesAndNewlines) else {
             return
         }
 
         if searchEndpointUnavailable {
+            searchError = nil
             captures = localMatches(for: submittedQuery)
             preserveSelection()
             return
         }
 
-        isSearching = true
-        defer { isSearching = false }
         do {
             let response = try await client.search(query: submittedQuery, limit: 50)
-            guard submittedQuery == query.trimmingCharacters(in: .whitespacesAndNewlines) else {
+            guard generation == searchGeneration,
+                  !Task.isCancelled,
+                  submittedQuery == query.trimmingCharacters(in: .whitespacesAndNewlines) else {
                 return
             }
+            searchError = nil
             captures = response.results.map(\.capture)
             preserveSelection()
             connectionState = connectedStatePreservingAIConfiguration()
-        } catch is CancellationError {
-            return
         } catch let error as RecallAPIError where error.statusCode == 404 {
-            searchEndpointUnavailable = true
-            await loadLibrary(initial: false, silent: true)
-            guard submittedQuery == query.trimmingCharacters(in: .whitespacesAndNewlines) else {
+            guard generation == searchGeneration,
+                  !Task.isCancelled,
+                  submittedQuery == query.trimmingCharacters(in: .whitespacesAndNewlines) else {
                 return
             }
+            searchEndpointUnavailable = true
+            await loadLibrary(initial: false, silent: true)
+            guard generation == searchGeneration,
+                  !Task.isCancelled,
+                  submittedQuery == query.trimmingCharacters(in: .whitespacesAndNewlines) else {
+                return
+            }
+            searchError = nil
             captures = localMatches(for: submittedQuery)
             preserveSelection()
             if !didExplainSearchFallback && !silent {
@@ -226,11 +309,16 @@ final class RecallStore: ObservableObject {
                 )
             }
         } catch {
-            captures = localMatches(for: submittedQuery)
-            preserveSelection()
-            if !silent {
-                notice = AppNotice(style: .error, message: error.recallUserMessage)
+            guard !Self.isCancellation(error),
+                  generation == searchGeneration,
+                  !Task.isCancelled,
+                  submittedQuery == query.trimmingCharacters(in: .whitespacesAndNewlines) else {
+                return
             }
+            searchError = error.recallUserMessage
+            captures = []
+            preserveSelection()
+            updateConnectionState(after: error)
         }
     }
 
@@ -239,12 +327,12 @@ final class RecallStore: ObservableObject {
         do {
             let capture = try await client.getCapture(id: selectedCaptureID)
             upsert(capture)
-        } catch is CancellationError {
-            return
         } catch let error as RecallAPIError where error.code == "capture_not_found" {
             removeCapture(id: selectedCaptureID)
             notice = AppNotice(style: .warning, message: error.localizedDescription)
         } catch {
+            guard !Self.isCancellation(error) else { return }
+            updateConnectionState(after: error)
             notice = AppNotice(style: .error, message: error.recallUserMessage)
         }
     }
@@ -255,12 +343,19 @@ final class RecallStore: ObservableObject {
             let snapshot = try clipboardService.readSnapshot()
             quickCaptureDraft = QuickCaptureDraft(
                 selectedText: snapshot.text,
-                sourceApplication: snapshot.sourceApplication
+                sourceApplication: snapshot.sourceApplication.map {
+                    Self.prefixUnicodeScalars(
+                        $0,
+                        limit: Self.maximumSourceApplicationLength
+                    )
+                }
             )
+            attemptedQuickCaptureRequest = nil
             quickCaptureError = nil
             return true
         } catch {
             quickCaptureDraft = nil
+            attemptedQuickCaptureRequest = nil
             quickCaptureError = error.recallUserMessage
             notice = AppNotice(style: .warning, message: error.recallUserMessage)
             return false
@@ -276,12 +371,31 @@ final class RecallStore: ObservableObject {
             return false
         }
 
+        guard draft.noteCharacterCount <= Self.maximumUserNoteLength else {
+            quickCaptureError = "The note is \(draft.noteCharacterCount.formatted()) characters. Recall can save notes up to \(Self.maximumUserNoteLength.formatted()) characters. Your draft has not been changed."
+            return false
+        }
+
         let note = draft.userNote.nonEmptyTrimmed == nil ? nil : draft.userNote
-        let request = CaptureCreateRequest.clipboard(
+        let currentRequest = CaptureCreateRequest.clipboard(
+            clientCaptureID: draft.clientCaptureID,
+            capturedAt: draft.capturedAt,
             text: draft.selectedText,
             sourceApp: draft.sourceApplication,
             userNote: note
         )
+
+        let request: CaptureCreateRequest
+        if let attemptedQuickCaptureRequest {
+            guard attemptedQuickCaptureRequest == currentRequest else {
+                quickCaptureError = "A previous save may already exist, so Recall must retry the original source and note. Cancel and capture again if you want to change the note."
+                return false
+            }
+            request = attemptedQuickCaptureRequest
+        } else {
+            request = currentRequest
+            attemptedQuickCaptureRequest = currentRequest
+        }
 
         isSubmittingCapture = true
         quickCaptureError = nil
@@ -293,22 +407,41 @@ final class RecallStore: ObservableObject {
             upsert(capture, insertAtFront: true)
             selectedCaptureID = capture.id
             connectionState = connectedStatePreservingAIConfiguration()
-            notice = AppNotice(style: .information, message: "Saved. Recall is processing this memory.")
-            beginPolling(captureID: capture.id)
-            return true
-        } catch is CancellationError {
-            return false
-        } catch {
-            quickCaptureError = error.recallUserMessage
-            if error is URLError {
-                connectionState = .disconnected
+            switch capture.status {
+            case .processing:
+                notice = AppNotice(
+                    style: .information,
+                    message: "Saved. Recall is processing this memory."
+                )
+                beginPolling(captureID: capture.id)
+            case .ready:
+                notice = AppNotice(
+                    style: .information,
+                    message: "Saved. This memory is ready."
+                )
+            case .error:
+                notice = AppNotice(
+                    style: .warning,
+                    message: "Saved, but AI processing needs attention. Your source and note are safe."
+                )
+            case .captured:
+                notice = AppNotice(
+                    style: .warning,
+                    message: "Saved, but processing has not started. Refresh or retry AI from the memory detail."
+                )
             }
+            return true
+        } catch {
+            guard !Self.isCancellation(error) else { return false }
+            quickCaptureError = error.recallUserMessage
+            updateConnectionState(after: error)
             return false
         }
     }
 
     func clearQuickCapture() {
         quickCaptureDraft = nil
+        attemptedQuickCaptureRequest = nil
         quickCaptureError = nil
     }
 
@@ -324,6 +457,8 @@ final class RecallStore: ObservableObject {
         } catch let error as RecallAPIError where error.code == "openai_not_configured" {
             notice = AppNotice(style: .warning, message: error.localizedDescription)
         } catch {
+            guard !Self.isCancellation(error) else { return }
+            updateConnectionState(after: error)
             notice = AppNotice(style: .error, message: error.recallUserMessage)
         }
     }
@@ -338,32 +473,51 @@ final class RecallStore: ObservableObject {
 
     private func beginPolling(captureID: String) {
         pollingTasks[captureID]?.cancel()
+        let generation = UUID()
+        pollingGenerations[captureID] = generation
         pollingTasks[captureID] = Task { [weak self] in
-            for _ in 0..<30 {
+            guard let self else { return }
+            defer {
+                self.finishPolling(captureID: captureID, generation: generation)
+            }
+
+            let startedAt = DispatchTime.now().uptimeNanoseconds
+            let deadline = startedAt &+ self.pollingTimeoutNanoseconds
+
+            for _ in 0..<self.pollingAttemptLimit {
+                let beforeSleep = DispatchTime.now().uptimeNanoseconds
+                guard beforeSleep < deadline else { break }
                 do {
-                    try await Task.sleep(nanoseconds: 2_000_000_000)
+                    try await Task.sleep(
+                        nanoseconds: min(
+                            self.pollingIntervalNanoseconds,
+                            deadline - beforeSleep
+                        )
+                    )
                 } catch {
                     return
                 }
-                guard let self else { return }
+                let beforeRequest = DispatchTime.now().uptimeNanoseconds
+                guard beforeRequest < deadline else { break }
                 do {
-                    let capture = try await self.client.getCapture(id: captureID)
+                    let capture = try await Self.captureBeforeDeadline(
+                        client: self.client,
+                        captureID: captureID,
+                        timeoutNanoseconds: deadline - beforeRequest
+                    )
                     self.upsert(capture)
                     if capture.status == .ready || capture.status == .error {
                         return
                     }
-                } catch is CancellationError {
-                    return
+                } catch is PollingDeadlineReached {
+                    break
                 } catch {
-                    if let urlError = error as? URLError,
-                       urlError.code == .cannotConnectToHost {
-                        self.connectionState = .disconnected
-                    }
+                    guard !Self.isCancellation(error) else { return }
+                    self.updateConnectionState(after: error)
                 }
             }
 
-            guard let self,
-                  self.libraryCaptures.first(where: { $0.id == captureID })?.status == .processing else {
+            guard self.libraryCaptures.first(where: { $0.id == captureID })?.status == .processing else {
                 return
             }
             self.notice = AppNotice(
@@ -373,11 +527,75 @@ final class RecallStore: ObservableObject {
         }
     }
 
+    private func finishPolling(captureID: String, generation: UUID) {
+        guard pollingGenerations[captureID] == generation else { return }
+        pollingTasks[captureID] = nil
+        pollingGenerations[captureID] = nil
+    }
+
+    private static func captureBeforeDeadline(
+        client: any RecallAPIClient,
+        captureID: String,
+        timeoutNanoseconds: UInt64
+    ) async throws -> Capture {
+        try await withThrowingTaskGroup(of: Capture.self) { group in
+            group.addTask {
+                try await client.getCapture(id: captureID)
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                throw PollingDeadlineReached()
+            }
+            defer { group.cancelAll() }
+            guard let capture = try await group.next() else {
+                throw PollingDeadlineReached()
+            }
+            return capture
+        }
+    }
+
     private func connectedStatePreservingAIConfiguration() -> BackendConnectionState {
         if case let .connected(openAIConfigured) = connectionState {
             return .connected(openAIConfigured: openAIConfigured)
         }
         return .connected(openAIConfigured: false)
+    }
+
+    static func searchValidationMessage(for query: String) -> String? {
+        let characterCount = query.unicodeScalars.count
+        if characterCount > maximumSearchQueryLength {
+            return "Search can use up to \(maximumSearchQueryLength.formatted()) characters; this query has \(characterCount.formatted())."
+        }
+        if query.unicodeScalars.contains(
+            where: { $0.value < 32 || $0.value == 127 }
+        ) {
+            return "Search cannot contain line breaks, tabs, or other control characters."
+        }
+        return nil
+    }
+
+    private static func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError || Task.isCancelled {
+            return true
+        }
+        return (error as? URLError)?.code == .cancelled
+    }
+
+    private static func prefixUnicodeScalars(_ value: String, limit: Int) -> String {
+        guard value.unicodeScalars.count > limit else { return value }
+        var result = String.UnicodeScalarView()
+        result.append(contentsOf: value.unicodeScalars.prefix(limit))
+        return String(result)
+    }
+
+    private func updateConnectionState(after error: Error) {
+        if let urlError = error as? URLError,
+           urlError.code != .cancelled {
+            connectionState = .disconnected
+        } else if error is RecallAPIError,
+                  connectionState != .degraded {
+            connectionState = connectedStatePreservingAIConfiguration()
+        }
     }
 
     private func upsert(_ capture: Capture, insertAtFront: Bool = false) {
@@ -443,3 +661,5 @@ final class RecallStore: ObservableObject {
         }
     }
 }
+
+private struct PollingDeadlineReached: Error {}

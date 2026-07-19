@@ -70,6 +70,7 @@ struct BackendConnectionPill: View {
         switch state {
         case .checking: "Connecting"
         case .connected: "Connected"
+        case .degraded: "Storage unavailable"
         case .disconnected: "Offline"
         }
     }
@@ -82,6 +83,8 @@ struct BackendConnectionPill: View {
             openAIConfigured
                 ? "Local service connected; AI is configured"
                 : "Local service connected; AI is not configured"
+        case .degraded:
+            "The local Recall service is running, but its database is unavailable"
         case .disconnected:
             "The local Recall service is not available"
         }
@@ -91,6 +94,7 @@ struct BackendConnectionPill: View {
         switch state {
         case .checking: .orange
         case .connected: .green
+        case .degraded: .red
         case .disconnected: .red
         }
     }

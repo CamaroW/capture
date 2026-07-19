@@ -14,6 +14,56 @@ final class LiveRecallAPIClientTests: XCTestCase {
         super.tearDown()
     }
 
+    func testHealthDecodesHealthy200Response() async throws {
+        let recorder = RequestRecorder()
+        URLProtocolStub.install { request in
+            recorder.record(request)
+            return try stubbedResponse(
+                for: request,
+                statusCode: 200,
+                data: Data(
+                    #"{"status":"ok","database":"ok","openai_configured":true}"#.utf8
+                )
+            )
+        }
+
+        let response = try await makeClient().health()
+
+        XCTAssertEqual(
+            response,
+            HealthResponse(status: "ok", database: "ok", openAIConfigured: true)
+        )
+        XCTAssertEqual(recorder.request?.httpMethod, "GET")
+        XCTAssertEqual(recorder.request?.url?.path, "/health")
+    }
+
+    func testHealthDecodesDegraded503Response() async throws {
+        let recorder = RequestRecorder()
+        URLProtocolStub.install { request in
+            recorder.record(request)
+            return try stubbedResponse(
+                for: request,
+                statusCode: 503,
+                data: Data(
+                    #"{"status":"degraded","database":"error","openai_configured":false}"#.utf8
+                )
+            )
+        }
+
+        let response = try await makeClient().health()
+
+        XCTAssertEqual(
+            response,
+            HealthResponse(
+                status: "degraded",
+                database: "error",
+                openAIConfigured: false
+            )
+        )
+        XCTAssertEqual(recorder.request?.httpMethod, "GET")
+        XCTAssertEqual(recorder.request?.url?.path, "/health")
+    }
+
     func testListCapturesDecodesItemsEnvelopeAndPagination() async throws {
         let recorder = RequestRecorder()
         let captureObject = try ContractFixtures.readyCaptureJSONObject()

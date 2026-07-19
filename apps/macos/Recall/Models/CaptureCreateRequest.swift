@@ -26,15 +26,14 @@ struct CaptureCreateRequest: Codable, Equatable, Sendable {
     }
 
     static func clipboard(
+        clientCaptureID: String,
+        capturedAt: String,
         text: String,
         sourceApp: String?,
         userNote: String?
     ) -> CaptureCreateRequest {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-
         return CaptureCreateRequest(
-            clientCaptureID: UUID().uuidString.lowercased(),
+            clientCaptureID: clientCaptureID,
             sourceType: .clipboard,
             sourceApp: sourceApp,
             sourceTitle: nil,
@@ -43,7 +42,13 @@ struct CaptureCreateRequest: Codable, Equatable, Sendable {
             surroundingContext: nil,
             contextTruncated: false,
             userNote: userNote,
-            capturedAt: formatter.string(from: Date())
+            capturedAt: capturedAt
         )
+    }
+
+    static func currentTimestamp() -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.string(from: Date())
     }
 }

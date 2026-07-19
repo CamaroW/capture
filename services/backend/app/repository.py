@@ -259,6 +259,7 @@ class CaptureRepository:
             max(limit * FTS_CANDIDATE_MULTIPLIER, limit),
             FTS_MAX_CANDIDATES,
         )
+
         def execute_match(operator: Literal["AND", "OR"]) -> list[sqlite3.Row]:
             match_query = build_fts_match_query(
                 normalized_query,
@@ -282,9 +283,56 @@ class CaptureRepository:
                     (match_query, candidate_limit),
                 ).fetchall()
 
-        rows = execute_match("AND")
-        if not rows and len(normalized_query.split()) > 1:
-            rows = execute_match("OR")
+        def execute_literal_substring() -> list[sqlite3.Row]:
+            """Recover partial identifiers and CJK fragments missed by FTS tokenization."""
+
+            literal_query = " ".join(normalized_query.split())
+            with database_connection(self.database_path) as connection:
+                return connection.execute(
+                    """
+                    SELECT captures.*, 0.0 AS fts_rank
+                    FROM captures_fts
+                    JOIN captures ON captures.id = captures_fts.capture_id
+                    WHERE instr(
+                        lower(
+                            COALESCE(captures_fts.source_title, '') || char(10) ||
+                            COALESCE(captures_fts.selected_text, '') || char(10) ||
+                            COALESCE(captures_fts.surrounding_context, '') || char(10) ||
+                            COALESCE(captures_fts.user_note, '') || char(10) ||
+                            COALESCE(captures_fts.ai_title, '') || char(10) ||
+                            COALESCE(captures_fts.ai_summary, '') || char(10) ||
+                            COALESCE(captures_fts.problem, '') || char(10) ||
+                            COALESCE(captures_fts.key_insight, '') || char(10) ||
+                            COALESCE(captures_fts.why_saved, '') || char(10) ||
+                            COALESCE(captures_fts.tags, '') || char(10) ||
+                            COALESCE(captures_fts.entities, '') || char(10) ||
+                            COALESCE(captures_fts.search_aliases, '')
+                        ),
+                        lower(?)
+                    ) > 0
+                    ORDER BY captures.created_at DESC
+                    LIMIT ?
+                    """,
+                    (literal_query, candidate_limit),
+                ).fetchall()
+
+        fts_rows = execute_match("AND")
+        if not fts_rows and len(normalized_query.split()) > 1:
+            fts_rows = execute_match("OR")
+
+        # FTS can find a complete token while still missing a partial identifier
+        # or CJK fragment elsewhere in the library.  Merge the bounded literal
+        # pass instead of using it only when FTS returns nothing.
+        rows: list[sqlite3.Row] = []
+        seen_capture_ids: set[str] = set()
+        for row in [*fts_rows, *execute_literal_substring()]:
+            capture_id = str(row["id"])
+            if capture_id in seen_capture_ids:
+                continue
+            rows.append(row)
+            seen_capture_ids.add(capture_id)
+            if len(rows) == candidate_limit:
+                break
 
         candidates = [
             (_row_to_record(row), max(0.0, -float(row["fts_rank"])))
