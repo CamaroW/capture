@@ -76,17 +76,17 @@ It refreshes directly from the checked-in Markdown source every two seconds.
 
 ## Status
 
-Layers 0–5 backend work is pushed. Layers 6 and 7 are implemented, verified,
-and committed on local branches but are not yet pushed. The documentation-only
-`main` change is also local. The unpacked-Chrome-to-macOS confirmation, real
-OpenAI provider proof, and complete team integration remain open; none is
-represented as complete. A validated local `integration/layers-6-7` branch
-combines Developer B's Chrome and retrieval deltas but not Developer A's macOS
-client. Live evidence and blockers are tracked in
+Layers 0–7, the combined Developer B integration checkpoint, the stress and
+hardening branches, and documentation-only `main` are pushed. The unpacked-
+Chrome-to-macOS confirmation, real OpenAI provider proof, and complete team
+integration remain open; none is represented as complete. The published
+`integration/layers-6-7` branch combines Developer B's Chrome and retrieval
+deltas but not Developer A's macOS client. Live evidence and blockers are
+tracked in
 [`docs/developer-b-checklist.md`](docs/developer-b-checklist.md).
 
-The first full backend stress audit is retained on local branch
+The first full backend stress audit is retained on branch
 `test/backend-stress`: its 44 escalated scenarios originally exposed 13 grouped
-repair items. Local branch `fix/backend-stress-hardening` at `5ea3d2a` resolves
-all groups; 181 backend tests and all 44 stress scenarios now pass. Neither
-branch is pushed.
+repair items. Branch `fix/backend-stress-hardening` at `5ea3d2a` resolves all
+groups; 181 backend tests and all 44 stress scenarios now pass. Both branches
+are published on `origin`.

@@ -13,9 +13,10 @@ Current branch: `main`
 Last verified Layer 5 implementation commit: `d34a567`, pushed to `origin/main`
 
 Branch map: `docs/branch-layout.md`; Layer 6 commit `d426ca8`; Layer 7 commit
-`faa45d7`; combined integration commit `3389bae`; none of the new branches is
-pushed yet. Stress harness/report commit: `0c9a52f`; hardening commit `5ea3d2a`
-on `fix/backend-stress-hardening`
+`faa45d7`; combined integration commit `3389bae`; all mapped branches are
+pushed. Stress harness/report commit: `0c9a52f`; hardening commit
+`5ea3d2a` on `fix/backend-stress-hardening`; all mapped branches are published
+on `origin`
 
 Last baseline cross-check: 2026-07-18 against all sections of
 `docs/product-plan.md`
@@ -59,12 +60,12 @@ Update protocol:
 | 9 | Optional Apple on-device path | Gated | Decision D-008 accepted; prerequisites unmet |
 | 10 | Final freeze and submission | Pending | Not started |
 
-No hard blocker prevents the completed local Layer 6/7 implementation work.
+No hard blocker prevents the completed published Layer 6/7 implementation work.
 B-009 holds the real unpacked-Chrome/macOS gate, B-008 prevents live
 embedding-model proof, B-007 prevents the real Layer 4 provider proof, and
 B-006 remains Developer A's shared macOS gate. B-010 blocks claiming a complete
-Layer 8 integration while `main` is documentation-only and the local Developer
-B integration branch does not include Developer A's macOS client. B-011 is
+Layer 8 integration while `main` is documentation-only and the published
+Developer B integration branch does not include Developer A's macOS client. B-011 is
 resolved by the verified hardening branch; it no longer independently blocks
 Layer 8.
 
@@ -659,6 +660,7 @@ Status: `[~]` implementation verified; real unpacked-Chrome/macOS gate open
 - [x] The isolated `layer/6-chrome-capture` branch passes 128 backend tests,
   all 13 extension tests, `pip check`, bytecode compilation, and JS syntax
   checks without any embedding or hybrid-retrieval files.
+- [x] Push `layer/6-chrome-capture` to `origin` at `d426ca8`.
 - [x] The real browser matrix covers Stack Overflow, GitHub, Python.org, OpenAI
   docs, selected code, no selection, long context, saved state, processing
   state, and connection-refusal state using the checked-in modules.
@@ -765,7 +767,7 @@ Chrome selection
   B-008; deterministic Layer 7 backend coverage is not presented as a substitute.
 - [x] Commit the working slice as `faa45d7` on
   `layer/7-hybrid-retrieval`.
-- [ ] Push the working slice.
+- [x] Push `layer/7-hybrid-retrieval` to `origin` at `faa45d7`.
 
 ---
 
@@ -797,8 +799,8 @@ Status: `[~]` stress remediation verified; integration gates remain
 - [x] Commit the concise remediation as `5ea3d2a` on
   `fix/backend-stress-hardening`; 181 backend tests and bytecode compilation
   pass.
-- [ ] Push the stress, hardening, and documentation-only `main` branches after
-  review.
+- [x] Push the stress, hardening, integration, isolated layer, and
+  documentation-only `main` branches to `origin`.
 
 The audit itself made no production change. D-021 records the separately
 authorized follow-up remediation and its exact contract additions.
@@ -1295,6 +1297,16 @@ resolved errors.
 - Resolution: Updated only the expected status and reran the unchanged backend;
   all 44 scenarios passed.
 - Project impact: Harness contract alignment only; no backend behavior changed.
+
+## E-037 — Post-push documentation search had an unsafe shell quote
+
+- Date: 2026-07-18
+- Status: Resolved 2026-07-18
+- Symptom: A read-only `rg` command exited with `zsh: unmatched "` because a
+  backtick inside its double-quoted pattern was interpreted by the shell.
+- Resolution: Reran the search with a single-quoted pattern and updated every
+  stale pre-push status reference.
+- Project impact: No file or remote state changed during the failed command.
 
 ## E-001 — Official OpenAI docs MCP could not initially install
 

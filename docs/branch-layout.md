@@ -54,15 +54,15 @@ only `main` cannot satisfy that requirement; D-019 records this explicit
 user-directed exception. Before Layer 8 or the final demo can be called
 integrated, the team must either restore a runnable `main` or create and agree
 on a separate integration branch that combines all required implementation.
-The local `integration/layers-6-7` branch combines Developer B's work, but it
-does not yet include Developer A's macOS client and has not been pushed or
-accepted as the final team integration branch.
+The published `integration/layers-6-7` branch combines Developer B's work, but
+it does not yet include Developer A's macOS client and has not been accepted as
+the final team integration branch.
 
 `test/backend-stress` is based on the Developer B integration branch. It adds
 no production behavior; it contains the destructive-in-temp harness and the
-exact findings summarized on documentation-only `main`. It is local and
-unpushed.
+exact findings summarized on documentation-only `main`. It is published on
+`origin`.
 
 `fix/backend-stress-hardening` continues from the stress branch. It retains the
 reproduction harness, applies the remediations documented in D-021, and passes
-181 backend tests plus all 44 stress scenarios. It is local and unpushed.
+181 backend tests plus all 44 stress scenarios. It is published on `origin`.
