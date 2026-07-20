@@ -38,7 +38,16 @@ Capture source text and an optional user note
 
 ## Start the backend
 
-The backend starts safely without an OpenAI key. From the repository root:
+The backend starts safely without an OpenAI key. From the repository root, the
+recommended clean-start command creates or repairs the local environment, checks
+configuration and dependencies, starts the service, waits for health, and prints
+the local engineering URLs:
+
+```bash
+./scripts/dev.sh
+```
+
+The equivalent manual setup is:
 
 ```bash
 cd services/backend
@@ -95,7 +104,7 @@ generated origin to the untracked root `.env` and restart the backend.
 ## Current status
 
 The hardened backend, Chrome extension, and macOS client have been assembled and
-verified in one integration tree. The current tree passes 186 backend tests,
+verified in one integration tree. The current branch passes 190 backend tests,
 all 44 deterministic stress scenarios, 13 extension tests, and 27 macOS tests.
 Live verification covers provider-off keyword fallback, real OpenAI enrichment
 and embeddings, semantic retrieval with a non-null score, and both selected-text

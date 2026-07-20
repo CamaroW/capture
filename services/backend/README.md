@@ -28,6 +28,21 @@ key. Copy `.env.example` to `.env` only when local overrides are needed.
 
 ## Start
 
+From the repository root, the recommended one-command startup is:
+
+```bash
+./scripts/dev.sh
+```
+
+It creates `services/backend/.venv` when missing, installs dependencies when
+needed, validates the environment-backed configuration, refuses to start over an
+unhealthy process already using the configured port, waits up to ten seconds for
+a healthy database, and prints the health and live-checklist URLs. It never
+prints an API key. Press `Control-C` to stop the backend. Set `PYTHON_BIN` only
+when `python3` is not the intended Python 3.10+ interpreter.
+
+To start the already-installed backend manually from `services/backend/`:
+
 ```bash
 .venv/bin/python -m app
 ```
@@ -126,6 +141,11 @@ Concurrent attempts return the stable `capture_already_processing` error.
 The P0 runner is deliberately in-process. It does not add Redis, Celery,
 WebSockets, or a durable queue; see decision D-014.
 
+If the process exits during enrichment, the next successful backend startup
+atomically changes every orphaned `processing` Capture to `error` with a safe
+restart message. Source text and the user note remain unchanged and searchable;
+use the existing enrichment endpoint or **Retry AI** in the macOS app to continue.
+
 ## Chrome extension CORS
 
 Layer 6 accepts cross-origin requests only from exact origins listed in
@@ -192,9 +212,9 @@ dimensions, corrupt rows, CORS, and restart durability. The dated findings and
 known limitations are recorded in
 `../../docs/backend-stress-report-2026-07-18.md`.
 
-The post-hardening run passes all 44 scenarios. The current integrated Python
-regression suite has 186 passing tests; the 181-test result remains the
-historical hardening-branch checkpoint.
+The post-hardening scenarios still pass 44/44 after startup-recovery and clean-
+start work. The current branch has 190 passing Python tests; 181 and 186 remain
+the historical hardening-branch and initial-integration checkpoints.
 
 ## Configuration
 

@@ -134,8 +134,9 @@ Run the build and tests again after regeneration.
   active window titles or Accessibility selections and has no global shortcut.
 - Persistence belongs to the backend SQLite database. The app has no offline
   write queue.
-- An abrupt backend exit can leave in-process enrichment unfinished; automatic
-  stale-processing recovery remains reliability work.
+- An abrupt backend exit can interrupt in-process enrichment. On the next
+  backend startup, the card becomes a visible retryable error while its source
+  and note remain intact.
 - App sandboxing, notarization, and bundling the Python service are outside the
   current P0 Build Week scope.
 

@@ -154,6 +154,12 @@ Capture reaches `error` with a safe message and can never become empty-ready or
 remain processing indefinitely. Enrichment scalar fields are capped at 2,000
 characters (title: 200); list fields are capped at 20 items of 300 characters.
 
+Because enrichment tasks run in-process, a backend exit can interrupt a task.
+After migrations on the next startup, all Captures left in `processing` are
+atomically changed to retryable `error` records. This transition changes only
+status, `updated_at`, and `error_message`; source and user-note fields remain
+unchanged.
+
 ## Stable embedding input — product-plan §12.1
 
 Only a successfully enriched Capture is embedded. The exact projection is:

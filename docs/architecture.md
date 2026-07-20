@@ -93,6 +93,8 @@ Failure rules:
 
 - A model or embedding failure never deletes the source or user note.
 - Enrichment failure produces `error` plus a retryable error message.
+- Startup converts processing work orphaned by a previous process exit into a
+  visible, retryable `error` without changing the source or user note.
 - Embedding failure may leave a text-enriched Capture searchable through FTS.
 - The MVP uses polling, not WebSockets.
 

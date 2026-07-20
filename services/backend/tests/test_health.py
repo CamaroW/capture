@@ -7,6 +7,11 @@ from fastapi.testclient import TestClient
 
 from app.config import get_settings
 from app.main import app
+from app.models import NewCapture
+from app.repository import (
+    CaptureRepository,
+    INTERRUPTED_PROCESSING_ERROR_MESSAGE,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -44,6 +49,36 @@ def test_health_reports_configured_openai_without_exposing_key(
     assert response.status_code == 200
     assert response.json()["openai_configured"] is True
     assert "test-only-secret" not in response.text
+
+
+def test_startup_recovers_interrupted_processing_capture(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "restart.db"
+    monkeypatch.setenv("RECALL_DATABASE_PATH", str(database_path))
+    get_settings.cache_clear()
+    repository = CaptureRepository(database_path)
+    stale = repository.create(
+        NewCapture(
+            captured_at="2026-07-18T12:00:00-07:00",
+            source_type="clipboard",
+            source_app="TextEdit",
+            selected_text="source survives restart",
+            user_note="note survives restart",
+        ),
+        status="processing",
+    )
+
+    with TestClient(app) as client:
+        response = client.get(f"/v1/captures/{stale.id}")
+
+    assert response.status_code == 200
+    recovered = response.json()
+    assert recovered["status"] == "error"
+    assert recovered["error_message"] == INTERRUPTED_PROCESSING_ERROR_MESSAGE
+    assert recovered["selected_text"] == "source survives restart"
+    assert recovered["user_note"] == "note survives restart"
 
 
 def test_health_returns_503_when_database_cannot_be_opened(

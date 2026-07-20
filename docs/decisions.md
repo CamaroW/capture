@@ -271,9 +271,12 @@ endpoint every one to two seconds, stop on `ready` or `error`, and cap polling
 at approximately 60 seconds. No WebSocket, Redis, Celery, or durable queue is
 added for P0.
 
-An abrupt process exit can still leave an in-process task unfinished. Automatic
-stale-processing recovery remains a documented post-MVP safeguard unless it
-becomes necessary for demo reliability.
+An abrupt process exit can leave an in-process task unfinished. For demo
+reliability, each successful backend startup now performs one transactional
+recovery after migrations: every pre-startup `processing` row becomes `error`
+with a safe interruption message. The transition preserves source and user-note
+fields and uses the existing explicit retry endpoint; it does not introduce a
+durable queue or automatically repeat an external model call.
 
 ## D-015 — Trigger-synchronized FTS5 with normalized keyword-only scoring
 

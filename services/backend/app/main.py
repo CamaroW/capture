@@ -121,6 +121,15 @@ async def lifespan(_: FastAPI):
     settings = get_settings()
     try:
         apply_migrations(settings.recall_database_path)
+        recovered_count = CaptureRepository(
+            settings.recall_database_path,
+            initialize=False,
+        ).recover_stale_processing()
+        if recovered_count:
+            logger.warning(
+                "Marked %s interrupted processing Capture(s) as retryable errors",
+                recovered_count,
+            )
     except MigrationError:
         logger.exception("SQLite migration failed; health will report degraded")
     yield

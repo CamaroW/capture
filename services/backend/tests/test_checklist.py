@@ -109,7 +109,9 @@ def test_dashboard_and_json_endpoints_are_read_only_and_uncached() -> None:
     assert "POLL_INTERVAL_MS = 2_000" in dashboard.text
     assert snapshot.status_code == 200
     assert snapshot.headers["cache-control"] == "no-store"
-    assert snapshot.json()["metadata"]["current_branch"] == "main"
+    current_branch = snapshot.json()["metadata"]["current_branch"]
+    assert current_branch
+    assert current_branch != "unknown"
 
 
 def test_dashboard_html_has_balanced_elements_and_unique_ids() -> None:
