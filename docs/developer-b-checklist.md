@@ -8,7 +8,7 @@ Last updated: 2026-07-19
 
 Current phase: shared P0 integration verified; Layer 10 submission work open
 
-Current branch: `main`
+Current branch: `agent/backend-recovery-dev-start`
 
 Last verified commit: final integration tree (see Git history)
 
@@ -16,9 +16,9 @@ Canonical target: `main` via the verified `codex/final-integration` tree
 
 Integration inputs: hardened backend and Chrome tree at `5ea3d2a`, macOS client
 at `12862d3`, and current shared contracts/documentation. Their histories are
-combined in the final integration that restores `main`. The current tree passes
-186 backend tests, 44/44 stress scenarios, 13 extension tests, and 27 macOS
-tests.
+combined in the final integration that restores `main`. This improvement branch
+passes 190 backend tests and all 44 stress scenarios; the unchanged Chrome and
+macOS evidence remains 13 and 27 tests respectively.
 
 Last baseline cross-check: 2026-07-18 against all sections of
 `docs/product-plan.md`
@@ -58,7 +58,7 @@ Update protocol:
 | 5 | FTS5 keyword retrieval | Complete | Commit `d34a567` pushed; 119 tests and provider-off live/restart proof pass |
 | 6 | Chrome capture | Complete | 13 tests plus unpacked selected-text/no-selection Captures displayed in macOS resolve B-009 |
 | 7 | Embeddings and hybrid retrieval | Complete | Real embedding and vague semantic-query proof with non-null score resolve B-008 |
-| 8 | Reliability and demo readiness | P0 integration verified / backlog remains | Integrated tree passes 186 backend tests, 44/44 stress scenarios, 13 extension tests, and 27 macOS tests |
+| 8 | Reliability and demo readiness | P0 integration verified / backlog reduced | Current branch passes 190 backend tests and 44/44 stress scenarios; stale-process recovery and one-command startup are verified |
 | 9 | Optional Apple on-device path | Gated | Decision D-008 accepted; prerequisites unmet |
 | 10 | Final freeze and submission | Pending | Not started |
 
@@ -821,7 +821,10 @@ authorized follow-up remediation and its exact contract additions.
 
 ## Build tasks
 
-- [ ] Recover or visibly mark stale `processing` records after restart.
+- [x] Recover stale `processing` records after restart. The transactional
+  startup transition preserves source/user content, exposes a retryable error,
+  and passes focused lifecycle coverage, the 190-test suite, and 44/44 stress
+  scenarios.
 - [x] Make repeated client submissions transactionally idempotent when
   `client_capture_id` is supplied, including concurrent retry coverage.
 - [x] Keep enrichment failure terminal while allowing embedding failure to fall
@@ -831,8 +834,10 @@ authorized follow-up remediation and its exact contract additions.
   debugging; this is an engineering safeguard, not a P0 feature.
 - [ ] Never log API keys or complete private captured text by default.
 - [ ] Create deterministic demo seed data from contract fixtures.
-- [ ] Create `scripts/dev.sh` or an equally simple documented clean-start
-  backend command.
+- [x] Create `scripts/dev.sh` as the documented clean-start backend command.
+  Bash validation, automated safeguards, a live provider-off start, health wait,
+  duplicate-process detection, URL output, and clean `Control-C` shutdown pass;
+  the complete 190-test suite and 44/44 stress scenarios also pass.
 - [ ] Document backend-connected/disconnected behavior for Developer A.
 - [x] Record stress limitations and remaining live/system gates in the README
   and dated stress report.
@@ -1371,6 +1376,21 @@ resolved errors.
 - Resolution: Reran the search with a single-quoted pattern and updated every
   stale pre-push status reference.
 - Project impact: No file or remote state changed during the failed command.
+
+## E-041 — Checklist endpoint test hardcoded the main branch
+
+- Date: 2026-07-19
+- Status: Resolved 2026-07-19
+- Symptom: The first full improvement-branch run passed 189 tests and failed the
+  checklist endpoint assertion because the live Markdown correctly reported
+  `agent/backend-recovery-dev-start` instead of the test's hardcoded `main`.
+- Cause: The endpoint test coupled valid dashboard metadata to one Git branch
+  name even though the dashboard is intentionally reread during feature work.
+- Resolution: Kept the live branch name accurate and changed the endpoint test
+  to require a present, non-`unknown` branch value. The separate parser test
+  continues to verify exact metadata extraction.
+- Project impact: Test robustness only; the endpoint and dashboard output were
+  correct during the failed assertion.
 
 ## E-001 — Official OpenAI docs MCP could not initially install
 

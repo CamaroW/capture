@@ -13,6 +13,7 @@ from app.repository import (
     CaptureAlreadyProcessingError,
     CaptureNotFoundError,
     CaptureRepository,
+    INTERRUPTED_PROCESSING_ERROR_MESSAGE,
 )
 
 
@@ -123,6 +124,40 @@ def test_source_and_note_survive_repository_restart_byte_for_byte(
     assert loaded.selected_text.encode("utf-8") == source.encode("utf-8")
     assert loaded.user_note is not None
     assert loaded.user_note.encode("utf-8") == note.encode("utf-8")
+
+
+def test_recover_stale_processing_marks_only_processing_records_retryable(
+    tmp_path: Path,
+) -> None:
+    times = iter(
+        [
+            datetime(2026, 7, 18, 19, 0, tzinfo=timezone.utc),
+            datetime(2026, 7, 18, 19, 1, tzinfo=timezone.utc),
+            datetime(2026, 7, 18, 19, 2, tzinfo=timezone.utc),
+            datetime(2026, 7, 18, 19, 3, tzinfo=timezone.utc),
+        ]
+    )
+    repository = CaptureRepository(tmp_path / "recall.db", clock=lambda: next(times))
+    stale = repository.create(
+        new_capture(selected_text="immutable source", user_note="immutable note"),
+        status="processing",
+    )
+    ready = repository.create(new_capture(selected_text="ready source"), status="ready")
+
+    recovered_count = repository.recover_stale_processing()
+
+    recovered = repository.get(stale.id)
+    unchanged_ready = repository.get(ready.id)
+    assert recovered_count == 1
+    assert recovered is not None
+    assert recovered.status == "error"
+    assert recovered.error_message == INTERRUPTED_PROCESSING_ERROR_MESSAGE
+    assert recovered.updated_at == "2026-07-18T19:02:00.000000Z"
+    assert recovered.selected_text == "immutable source"
+    assert recovered.user_note == "immutable note"
+    assert unchanged_ready == ready
+    assert repository.recover_stale_processing() == 0
+    assert repository.get(stale.id) == recovered
 
 
 def test_enrichment_update_cannot_modify_source_or_user_note(tmp_path: Path) -> None:

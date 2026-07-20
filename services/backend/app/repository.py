@@ -27,6 +27,9 @@ from app.search import (
 VALID_CAPTURE_STATUSES = frozenset(get_args(CaptureStatus))
 FTS_CANDIDATE_MULTIPLIER = 5
 FTS_MAX_CANDIDATES = 500
+INTERRUPTED_PROCESSING_ERROR_MESSAGE = (
+    "AI processing was interrupted by a backend restart. Retry AI to continue."
+)
 
 
 class CaptureNotFoundError(LookupError):
@@ -233,6 +236,29 @@ class CaptureRepository:
                 """
             ).fetchall()
         return [_row_to_record(row) for row in rows]
+
+    def recover_stale_processing(self) -> int:
+        """Atomically make pre-startup processing records visible and retryable."""
+
+        updated_at = self._timestamp()
+        with database_connection(self.database_path) as connection:
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                cursor = connection.execute(
+                    """
+                    UPDATE captures
+                    SET status = 'error', updated_at = ?, error_message = ?
+                    WHERE status = 'processing'
+                    """,
+                    (updated_at, INTERRUPTED_PROCESSING_ERROR_MESSAGE),
+                )
+                recovered_count = cursor.rowcount
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+
+        return recovered_count
 
     def semantic_revision(self) -> tuple[str, int, int]:
         """Return a cheap cache key for the single local SQLite database."""

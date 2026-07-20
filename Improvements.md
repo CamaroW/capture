@@ -8,3 +8,8 @@
 | 6 | **Clear privacy/provider state** | Display “Stored locally · AI via OpenAI” and explain that offline FTS works while enrichment/embeddings require OpenAI. | Shared |
 | 7 | **Related memories strip** | Reuse existing semantic search to show 2–3 related cards. This delivers part of the memory-graph idea without building a graph. | Shared |
 | 8 | **Submission polish** | Add screenshots, architecture diagram, license, known limitations, backup recording, and a `demo-stable` tag. | Shared |
+
+Implementation progress:
+
+- [x] Improvement 3: startup recovery makes interrupted processing visible and retryable.
+- [x] Improvement 4: `scripts/dev.sh` provides validated one-command backend startup.
