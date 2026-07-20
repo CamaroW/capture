@@ -6,7 +6,7 @@ Project: Recall
 
 Last updated: 2026-07-20
 
-Current phase: screenshot-to-notes addition published; live GPT proof B-012 pending
+Current phase: screenshot-to-notes addition published; manual gates B-012/B-013 pending
 
 Current branch: `agent/screenshot-notes-ocr`
 
@@ -61,7 +61,7 @@ Update protocol:
 | 8 | Reliability and demo readiness | P0 integration verified / backlog reduced | Current branch passes 210 backend tests and 44/44 stress scenarios; stale-process recovery, one-command startup, and 16 Chrome tests are verified |
 | 9 | Optional Apple on-device path | Gated | Decision D-008 accepted; prerequisites unmet |
 | 10 | Final freeze and submission | Pending | Not started |
-| Addition | Screenshot-to-notes OCR | Published / live GPT proof pending | Commit `fc23cdf`, draft PR #4, 210 backend, 16 extension, and 37 macOS tests pass; B-012 tracks live GPT proof |
+| Addition | Screenshot-to-notes OCR | Published / manual proof pending | Commit `fc23cdf`, draft PR #4, 210 backend, 16 extension, and 37 macOS tests pass; B-012/B-013 track live demo proof |
 
 The D-023 integration closes B-010, the macOS slice closes B-006, and real
 provider plus unpacked-Chrome evidence closes B-007, B-008, and B-009. B-011 is
@@ -71,8 +71,8 @@ gate.
 
 ## Active addition — screenshot text into notes
 
-Status: `[x]` implemented, verified, and published under D-027; B-012 is an
-external demo-proof gate rather than unfinished code
+Status: `[x]` implemented, verified, and published under D-027; B-012/B-013 are
+manual demo-proof gates rather than unfinished code
 
 - [x] Audit local and remote branches plus merged PRs for an existing screenshot
   or OCR implementation. None exists; only P2 deferral documentation was found.
@@ -84,7 +84,7 @@ external demo-proof gate rather than unfinished code
   implementation. Focused backend API/provider run passes 71 tests.
 - [x] Add interactive macOS screenshot selection, a preview, provider choice,
   and an explicit **Extract text into note** action. The production app builds
-  successfully and the deterministic macOS suite passes 36 tests, including
+  successfully and the deterministic macOS suite passes 37 tests, including
   the production Apple Vision extractor on generated screenshot text.
 - [x] Save extracted text through the existing Capture storage, enrichment, and
   retrieval pipeline without creating a parallel notes database. Store tests
@@ -1235,6 +1235,21 @@ Use IDs `B-###`. Never delete an entry; append resolution and date.
   and exact text, then remove no source data because the test image is synthetic.
 - Does it block build, deterministic verification, commit, or push? No. It is a
   transparent manual integration gate before claiming live GPT OCR in the demo.
+
+## B-013 — Interactive macOS screenshot permission flow needs manual rehearsal
+
+- Opened: 2026-07-20
+- Severity: Manual UI/demo evidence / non-blocking
+- Status: Open
+- Impact: The production `/usr/sbin/screencapture -i` path compiles, injected
+  screenshot drafts are tested, and the production Apple Vision extractor reads
+  generated screenshot text. Automation did not click-drag the real system
+  overlay because that could capture unrelated private desktop content.
+- Resolution procedure: Run the **Screenshot cancellation/limits** and both
+  screenshot-note rows in `apps/macos/README.md`, grant Screen Recording access
+  if prompted, relaunch Recall, and complete one clean rehearsal.
+- Does it block build, automated verification, commit, or push? No. It must be
+  closed before claiming the permission/selection interaction is demo-verified.
 
 # Errors encountered
 
