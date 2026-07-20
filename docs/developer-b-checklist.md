@@ -6,11 +6,11 @@ Project: Recall
 
 Last updated: 2026-07-20
 
-Current phase: screenshot-to-notes pre-merge hardening; manual gates B-012/B-013 pending
+Current phase: screenshot-to-notes live verification complete; delivery tracked by PR #5
 
 Current branch: `codex/pr4-hardening`
 
-Last published feature commit: `f32bb37`; hardening commit `5e27c03` pushed
+Last published feature commit: `f32bb37`; hardening series through `878dede` pushed
 
 Canonical target: `main`
 
@@ -61,7 +61,7 @@ Update protocol:
 | 8 | Reliability and demo readiness | P0 integration verified / backlog reduced | Current branch passes 213 backend tests and 44/44 stress scenarios; stale-process recovery, version-aware one-command startup, and 16 Chrome tests are verified |
 | 9 | Optional Apple on-device path | Gated | Decision D-008 accepted; prerequisites unmet |
 | 10 | Final freeze and submission | Pending | Not started |
-| Addition | Screenshot-to-notes OCR | Hardened locally / manual proof pending | Draft PR #4 supplied the feature; the hardening tree passes 213 backend, 16 extension, and 43 macOS tests; B-012/B-013 track live demo proof |
+| Addition | Screenshot-to-notes OCR | Complete and verified | PR #5 supersedes draft PR #4; 213 backend, 44/44 stress, 16 extension, and 43 macOS tests pass; live GPT, Apple Vision, permission, cancellation, and dismissal flows pass |
 
 The D-023 integration closes B-010, the macOS slice closes B-006, and real
 provider plus unpacked-Chrome evidence closes B-007, B-008, and B-009. B-011 is
@@ -71,8 +71,8 @@ gate.
 
 ## Active addition — screenshot text into notes
 
-Status: `[~]` implementation and automated hardening verified under D-027;
-B-012/B-013 remain pre-merge manual demo-proof gates
+Status: `[x]` implementation plus automated and manual hardening verified under
+D-027; the reviewed change is recorded in PR #5
 
 - [x] Audit local and remote branches plus merged PRs for an existing screenshot
   or OCR implementation. None exists; only P2 deferral documentation was found.
@@ -108,9 +108,11 @@ B-012/B-013 remain pre-merge manual demo-proof gates
   deliberate difference from the outline's deferred full image-memory work.
 - [x] Developer B committed with `unsupervised push` in the commit message,
   pushed `agent/screenshot-notes-ocr`, and opened draft PR #4.
-- [~] The reviewed successor `codex/pr4-hardening` and its rollback tag are
-  pushed. Open its draft PR, close B-012/B-013, then supersede PR #4 and merge
-  the hardened branch into `main`.
+- [x] Complete harmless real GPT OCR and interactive macOS permission,
+  cancellation, Apple Vision, and dismiss-during-extraction proof. B-012 and
+  B-013 record the 2026-07-20 evidence.
+- [x] PR #5 publishes `codex/pr4-hardening` as the reviewed successor to PR #4;
+  the final remote-state check controls its merge into `main`.
 
 ## Scope, schedule, and collaboration guardrails
 
@@ -1231,43 +1233,43 @@ Use IDs `B-###`. Never delete an entry; append resolution and date.
   unchanged 44/44 stress scenarios.
 - Does it block Layer 8? No. Shared P0 live gates are resolved.
 
-## B-012 — Real GPT screenshot extraction proof is pending
+## B-012 — Real GPT screenshot extraction proof
 
 - Opened: 2026-07-20
 - Severity: External integration evidence / non-blocking
-- Status: Open; the ignored root `.env` now configures OpenAI, but the harmless
-  real screenshot request has not yet been rehearsed on the hardening tree
-- Impact: The default GPT route, request shape, provider metadata, refusal,
-  incomplete response, invalid output, oversize output, provider failure, and
-  missing-key behavior are deterministically tested. A real screenshot request
-  to GPT has not been made from this branch.
+- Status: Resolved 2026-07-20
+- Impact: Before resolution, only the default GPT route, request shape, provider
+  metadata, refusal, incomplete response, invalid output, oversize output,
+  provider failure, and missing-key behavior were deterministically tested.
 - Evidence: The current isolated one-command startup reports
   `openai_configured=true`. Earlier provider-off smoke on port 8876 returned the
   stable HTTP 503 envelope and left the Capture list empty, proving OCR input was
   not persisted. Deterministic provider/request coverage passes.
-- Resolution procedure: Keep the key only in the ignored root `.env`, run the
-  GPT screenshot row in `apps/macos/README.md` on harmless prepared text, confirm
-  cloud provider/model metadata and exact source text, and save only if the test
-  Capture is intentionally wanted.
-- Does it block build, deterministic verification, commit, or push? No. It is a
-  transparent manual integration gate before claiming live GPT OCR in the demo.
+- Resolution: Developer A ran the hardening tree against the isolated
+  `/private/tmp` database with the ignored root `.env`. GPT extracted harmless
+  prepared screenshot text into the source field, left the personal note
+  independent, and saved/displayed the two sections correctly.
+- Does it block build, deterministic verification, commit, or push? No. The
+  manual integration gate is now closed.
 
-## B-013 — Interactive macOS screenshot permission flow needs manual rehearsal
+## B-013 — Interactive macOS screenshot permission flow
 
 - Opened: 2026-07-20
 - Severity: Manual UI/demo evidence / non-blocking
-- Status: Open
+- Status: Resolved 2026-07-20
 - Impact: The production `/usr/sbin/screencapture -i` path compiles, injected
   screenshot drafts are tested, and the production Apple Vision extractor reads
   generated screenshot text. Permission preflight now exposes an actionable
   System Settings message, cancellation/close clears the draft, and generation
   guards reject late extraction results. Automation did not click-drag the real
   system overlay because that could capture unrelated private desktop content.
-- Resolution procedure: Run the **Screenshot cancellation/limits** and both
-  screenshot-note rows in `apps/macos/README.md`, grant Screen Recording access
-  if prompted, relaunch Recall, and complete one clean rehearsal.
-- Does it block build, automated verification, commit, or push? No. It must be
-  closed before claiming the permission/selection interaction is demo-verified.
+- Resolution: Developer A completed the real Screen Recording permission flow,
+  cancelled the system region selector without creating a draft, verified both
+  GPT and Apple Vision extraction, then dismissed an extraction through the
+  available Cancel action. After ten seconds a fresh screenshot produced only
+  its fresh result; no old preview or late OCR result returned.
+- Does it block build, automated verification, commit, or push? No. The manual
+  permission and selection gate is now closed.
 
 # Errors encountered
 

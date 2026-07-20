@@ -40,7 +40,7 @@ addition made beyond [`product-plan.md`](product-plan.md).
 | D-024 | Bounded literal-substring retrieval fallback | Clarification | Accepted |
 | D-025 | Keyboard-first Chrome capture polish | Addition | Accepted by user direction |
 | D-026 | Deterministic macOS command-line test runner | Reliability safeguard | Accepted |
-| D-027 | Transient screenshot OCR into the existing Capture pipeline | Addition | Pre-merge hardening; B-012/B-013 track live proof |
+| D-027 | Transient screenshot OCR into the existing Capture pipeline | Addition | Implemented and live-verified in PR #5 |
 
 ## D-001 — Localhost monorepo architecture
 
@@ -570,8 +570,8 @@ runner completes normally.
 ## D-027 — Transient screenshot OCR into the existing Capture pipeline
 
 - Classification: Addition approved by explicit user direction
-- Status: Implemented and under pre-merge hardening; live GPT and interactive
-  permission proof remain tracked by B-012 and B-013
+- Status: Implemented and live-verified; B-012 and B-013 were resolved on the
+  integration Mac and the reviewed change is recorded in PR #5
 - Product impact: Adds an interactive screenshot-to-note path with GPT first and
   Apple Vision as an on-device alternative
 - Schedule impact: Bounded exception to the outline's deferred OCR scope
