@@ -255,6 +255,10 @@ dimensions, corrupt rows, CORS, and restart durability. The dated findings and
 known limitations are recorded in
 `../../docs/backend-stress-report-2026-07-18.md`.
 
+The harness prints every observation before exiting. It returns a nonzero status
+when no observations ran or any outcome is not `pass`, so CI cannot report a
+false green result after a recorded break.
+
 The post-hardening scenarios still pass 44/44 after startup-recovery and clean-
 start work. The integrated baseline had 190 passing Python tests; the current
 feature-branch count is recorded in `docs/developer-b-checklist.md` after every

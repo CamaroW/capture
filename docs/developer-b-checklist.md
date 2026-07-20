@@ -8,16 +8,16 @@ Last updated: 2026-07-20
 
 Current phase: screenshot-to-notes live verification complete; delivery tracked by PR #5
 
-Current branch: `codex/pr4-hardening`
+Current branch: `main`
 
-Last published feature commit: `f32bb37`; hardening series through `878dede` pushed
+Last verified commit: `23b542e`
 
 Canonical target: `main`
 
 Integration inputs: hardened backend and Chrome tree at `5ea3d2a`, macOS client
 at `12862d3`, backend recovery/startup work at `40c07f0`, keyboard-first Chrome
 capture at `b3a524a`, and current shared contracts/documentation. Their histories
-are combined on `main`. The current hardening tree passes 213 backend tests,
+are combined on `main`. The current hardening tree passes 214 backend tests,
 44/44 stress scenarios, 16 extension tests, and 43 macOS tests.
 
 Last baseline cross-check: 2026-07-18 against all sections of
@@ -58,10 +58,10 @@ Update protocol:
 | 5 | FTS5 keyword retrieval | Complete | Commit `d34a567` pushed; 119 tests and provider-off live/restart proof pass |
 | 6 | Chrome capture | Complete / shortcut polish awaiting manual check | 16 automated tests pass; earlier unpacked selected-text/no-selection Captures displayed in macOS resolve B-009 |
 | 7 | Embeddings and hybrid retrieval | Complete | Real embedding and vague semantic-query proof with non-null score resolve B-008 |
-| 8 | Reliability and demo readiness | P0 integration verified / backlog reduced | Current branch passes 213 backend tests and 44/44 stress scenarios; stale-process recovery, version-aware one-command startup, and 16 Chrome tests are verified |
+| 8 | Reliability and demo readiness | P0 integration verified / backlog reduced | Current branch passes 214 backend tests and 44/44 stress scenarios; stale-process recovery, version-aware one-command startup, and 16 Chrome tests are verified |
 | 9 | Optional Apple on-device path | Gated | Decision D-008 accepted; prerequisites unmet |
 | 10 | Final freeze and submission | Pending | Not started |
-| Addition | Screenshot-to-notes OCR | Complete and verified | PR #5 supersedes draft PR #4; 213 backend, 44/44 stress, 16 extension, and 43 macOS tests pass; live GPT, Apple Vision, permission, cancellation, and dismissal flows pass |
+| Addition | Screenshot-to-notes OCR | Complete and verified | PR #5 supersedes draft PR #4; 214 backend, 44/44 stress, 16 extension, and 43 macOS tests pass; live GPT, Apple Vision, permission, cancellation, and dismissal flows pass |
 
 The D-023 integration closes B-010, the macOS slice closes B-006, and real
 provider plus unpacked-Chrome evidence closes B-007, B-008, and B-009. B-011 is
@@ -93,7 +93,7 @@ D-027; the reviewed change is recorded in PR #5
   close; migration 003 preserves old rows and rebuilds synchronized FTS.
 - [x] Test malformed images, provider failure/refusal/empty output, source limits,
   local extraction, API paths, and the complete existing regression suite.
-  Evidence: 213 backend tests, 44/44 stress scenarios, 16 extension tests plus
+  Evidence: 214 backend tests, 44/44 stress scenarios, 16 extension tests plus
   syntax checks, and 43 macOS tests.
 - [x] Add explicit Screen Recording permission preflight and an actionable
   System Settings error; clear screenshot memory on every dismissal path and
@@ -1275,6 +1275,19 @@ Use IDs `B-###`. Never delete an entry; append resolution and date.
 
 Use IDs `E-###`. Record the original symptom and the resolution. Do not erase
 resolved errors.
+
+## E-053 — Sandboxed macOS verification could not access Vision services
+
+- Date: 2026-07-20
+- Status: Resolved 2026-07-20
+- Command: `./scripts/test-macos.sh`
+- Symptom: The restricted first run could not write CoreSimulator logs and the
+  production Apple Vision test returned a generic Foundation error; the other
+  42 tests passed.
+- Resolution: Reran the identical suite with normal host access. Apple Vision
+  succeeded and all 43 tests passed. No source change was required.
+- Project impact: Execution-environment restriction only; the GitHub-hosted
+  macOS runner uses its normal host services.
 
 ## E-048 — Screenshot tests first awaited inside XCTest autoclosures
 

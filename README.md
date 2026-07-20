@@ -1,5 +1,7 @@
 # Recall
 
+[![CI](https://github.com/CamaroW/capture/actions/workflows/ci.yml/badge.svg)](https://github.com/CamaroW/capture/actions/workflows/ci.yml)
+
 Recall is a local-first macOS personal-memory tool. It preserves source
 material, the user's reason for saving it, and an AI-generated contextual
 interpretation as separate, searchable layers.
@@ -117,12 +119,21 @@ generated origin to the untracked root `.env` and restart the backend.
 - [`docs/backend-stress-report-2026-07-18.md`](docs/backend-stress-report-2026-07-18.md)
   records the first full backend stress audit and remediation evidence.
 
+## Continuous integration
+
+Every pull request targeting `main` runs independent backend, deterministic
+stress, Chrome-extension, and macOS/Xcode jobs. A final **Required checks** job
+fails unless every layer passes. The workflow has read-only repository access,
+does not receive `.env` or an OpenAI key, and never performs a real provider
+call. Real GPT, Screen Recording permission, and interactive screenshot flows
+remain explicit manual release gates.
+
 ## Current status
 
 The hardened backend, Chrome extension, and macOS client have been assembled and
 verified in one integration tree. Baseline counts were 190 backend tests,
 all 44 deterministic stress scenarios, 16 extension tests, and 27 macOS tests.
-The screenshot-note hardening tree passes 213 backend tests, 44/44 stress
+The screenshot-note hardening tree passes 214 backend tests, 44/44 stress
 scenarios, 16 extension tests, and 43 macOS tests, including the production
 Apple Vision extractor.
 Live verification covers provider-off keyword fallback, real OpenAI enrichment

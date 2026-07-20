@@ -92,6 +92,14 @@ class Results:
             return None
 
 
+def exit_code_for(results: Results) -> int:
+    """Fail automation when the harness is empty or any scenario did not pass."""
+    all_passed = bool(results.items) and all(
+        item.outcome == "pass" for item in results.items
+    )
+    return 0 if all_passed else 1
+
+
 class ConstantEmbeddingProvider:
     def __init__(self, vector: list[float]) -> None:
         self.vector = vector
@@ -1059,7 +1067,7 @@ def main() -> int:
         "observations": [asdict(item) for item in results.items],
     }
     print(json.dumps(output, ensure_ascii=False, indent=2))
-    return 0
+    return exit_code_for(results)
 
 
 if __name__ == "__main__":

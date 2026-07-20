@@ -41,6 +41,7 @@ addition made beyond [`product-plan.md`](product-plan.md).
 | D-025 | Keyboard-first Chrome capture polish | Addition | Accepted by user direction |
 | D-026 | Deterministic macOS command-line test runner | Reliability safeguard | Accepted |
 | D-027 | Transient screenshot OCR into the existing Capture pipeline | Addition | Implemented and live-verified in PR #5 |
+| D-028 | Layered GitHub Actions pull-request checks | Reliability safeguard | Accepted by user direction |
 
 ## D-001 — Localhost monorepo architecture
 
@@ -600,6 +601,24 @@ FTS table. No image column is added.
 This decision does not authorize background screen monitoring, automatic OCR,
 full screenshot persistence, image embeddings, chart understanding, or a new
 navigation system. Those remain deferred.
+
+## D-028 — Layered GitHub Actions pull-request checks
+
+- Classification: Reliability safeguard approved by explicit user direction
+- Status: Implemented
+- Product impact: None; production behavior and data contracts are unchanged
+- Schedule impact: Low; failures become visible before merge
+
+Pull requests targeting `main`, pushes to `main`, and manual dispatches run four
+independent jobs: backend tests, deterministic backend stress, the Chrome
+extension suite, and the macOS/Xcode suite. A stable **Required checks** job
+fails unless all four complete successfully, so branch protection needs only
+one required context even if individual jobs evolve.
+
+The workflow grants only read access to repository contents, pins GitHub-owned
+actions to immutable release commits, cancels superseded runs, and never loads
+`.env` or an OpenAI key. Provider behavior, screenshot permissions, and other
+interactive operating-system flows retain their documented manual gates.
 
 ## Pending decisions
 
