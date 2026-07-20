@@ -5,6 +5,7 @@ struct QuickCaptureView: View {
     @EnvironmentObject private var store: RecallStore
     @Environment(\.dismissWindow) private var dismissWindow
     @FocusState private var noteIsFocused: Bool
+    @State private var screenshotExtractionTask: Task<Void, Never>?
 
     var body: some View {
         Group {
@@ -21,6 +22,11 @@ struct QuickCaptureView: View {
         }
         .onExitCommand {
             cancel()
+        }
+        .onDisappear {
+            screenshotExtractionTask?.cancel()
+            screenshotExtractionTask = nil
+            store.dismissQuickCapturePresentation()
         }
     }
 
@@ -58,7 +64,7 @@ struct QuickCaptureView: View {
                 ScrollView {
                     Text(
                         draft.selectedText.nonEmptyTrimmed
-                            ?? "Choose an extractor, then add the screenshot text to your note."
+                            ?? "Choose an extractor, then extract the screenshot's source text."
                     )
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .font(.body)
@@ -122,7 +128,7 @@ struct QuickCaptureView: View {
             HStack {
                 Text(
                     draft.kind == .screenshot
-                        ? "The screenshot is temporary; only the extracted text is saved."
+                        ? "Recall saves only the extracted source text and your optional note; closing clears the temporary image."
                         : "Your source is saved before AI processing begins."
                 )
                     .font(.caption)
@@ -130,7 +136,7 @@ struct QuickCaptureView: View {
                 Spacer()
                 Button("Cancel", action: cancel)
                     .keyboardShortcut(.cancelAction)
-                    .disabled(store.isSubmittingCapture || store.isExtractingScreenshot)
+                    .disabled(store.isSubmittingCapture)
                 Button {
                     save()
                 } label: {
@@ -191,7 +197,9 @@ struct QuickCaptureView: View {
                 .foregroundStyle(.secondary)
                 Spacer()
                 Button {
-                    Task {
+                    screenshotExtractionTask?.cancel()
+                    screenshotExtractionTask = Task { @MainActor in
+                        defer { screenshotExtractionTask = nil }
                         if await store.extractScreenshotText() {
                             noteIsFocused = true
                         }
@@ -204,8 +212,8 @@ struct QuickCaptureView: View {
                     } else {
                         Text(
                             store.screenshotExtractionSummary == nil
-                                ? "Extract text into note"
-                                : "Re-extract text"
+                                ? "Extract source text"
+                                : "Re-extract source text"
                         )
                         .frame(minWidth: 150)
                     }
@@ -224,10 +232,14 @@ struct QuickCaptureView: View {
 
     private var unavailableState: some View {
         VStack(spacing: 16) {
-            Image(systemName: "doc.on.clipboard")
+            Image(
+                systemName: store.quickCaptureError == nil
+                    ? "doc.on.clipboard"
+                    : "exclamationmark.triangle"
+            )
                 .font(.system(size: 40))
                 .foregroundStyle(.secondary)
-            Text("Nothing to capture")
+            Text(store.quickCaptureError == nil ? "Nothing to capture" : "Capture unavailable")
                 .font(.title2.weight(.bold))
             Text(store.quickCaptureError ?? "Copy some text in any app, then choose Capture Clipboard again.")
                 .multilineTextAlignment(.center)
@@ -253,15 +265,21 @@ struct QuickCaptureView: View {
     }
 
     private func save() {
+        guard let clientCaptureID = store.quickCaptureDraft?.clientCaptureID else { return }
         Task {
             guard await store.submitQuickCapture() else { return }
+            guard store.quickCaptureDraft?.clientCaptureID == clientCaptureID else {
+                return
+            }
             dismissWindow(id: RecallWindowID.quickCapture)
             store.clearQuickCapture()
         }
     }
 
     private func cancel() {
-        guard !store.isSubmittingCapture, !store.isExtractingScreenshot else { return }
+        guard !store.isSubmittingCapture else { return }
+        screenshotExtractionTask?.cancel()
+        screenshotExtractionTask = nil
         dismissWindow(id: RecallWindowID.quickCapture)
         store.clearQuickCapture()
     }

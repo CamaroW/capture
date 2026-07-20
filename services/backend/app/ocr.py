@@ -53,7 +53,7 @@ class InvalidOCROutputError(OCRFailure):
 class OCRTextTooLongError(OCRFailure):
     code = "ocr_text_too_long"
     safe_message = (
-        "The screenshot contains too much text for one note. "
+        "The screenshot contains too much source text for one Capture. "
         "Capture a smaller region and try again."
     )
 

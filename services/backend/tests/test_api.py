@@ -207,7 +207,7 @@ def test_screenshot_text_capture_uses_explicit_source_type(
         "source_type": "screenshot",
         "source_app": "Preview",
         "selected_text": "Exact text extracted from the selected region.",
-        "user_note": "Exact text extracted from the selected region.",
+        "user_note": "Use this wording in tomorrow's demo.",
         "captured_at": "2026-07-20T06:00:00-07:00",
     }
 
@@ -216,6 +216,8 @@ def test_screenshot_text_capture_uses_explicit_source_type(
     assert response.status_code == 202
     assert response.json()["source_type"] == "screenshot"
     assert response.json()["selected_text"] == payload["selected_text"]
+    assert response.json()["user_note"] == payload["user_note"]
+    assert response.json()["user_note"] != response.json()["selected_text"]
 
 
 def test_screenshot_ocr_requires_openai_or_local_client_path(

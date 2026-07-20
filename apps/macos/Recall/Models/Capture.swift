@@ -11,6 +11,14 @@ enum CaptureSourceType: String, Codable, Sendable {
     case web
     case clipboard
     case screenshot
+
+    var systemImageName: String {
+        switch self {
+        case .web: return "globe"
+        case .clipboard: return "doc.on.clipboard"
+        case .screenshot: return "camera.viewfinder"
+        }
+    }
 }
 
 struct Capture: Codable, Identifiable, Hashable, Sendable {

@@ -40,7 +40,7 @@ addition made beyond [`product-plan.md`](product-plan.md).
 | D-024 | Bounded literal-substring retrieval fallback | Clarification | Accepted |
 | D-025 | Keyboard-first Chrome capture polish | Addition | Accepted by user direction |
 | D-026 | Deterministic macOS command-line test runner | Reliability safeguard | Accepted |
-| D-027 | Transient screenshot OCR into the existing Capture pipeline | Addition | Implemented; B-012 tracks live GPT proof |
+| D-027 | Transient screenshot OCR into the existing Capture pipeline | Addition | Pre-merge hardening; B-012/B-013 track live proof |
 
 ## D-001 — Localhost monorepo architecture
 
@@ -570,8 +570,8 @@ runner completes normally.
 ## D-027 — Transient screenshot OCR into the existing Capture pipeline
 
 - Classification: Addition approved by explicit user direction
-- Status: Implemented, verified, and published in draft PR #4; live GPT proof
-  remains tracked by B-012
+- Status: Implemented and under pre-merge hardening; live GPT and interactive
+  permission proof remain tracked by B-012 and B-013
 - Product impact: Adds an interactive screenshot-to-note path with GPT first and
   Apple Vision as an on-device alternative
 - Schedule impact: Bounded exception to the outline's deferred OCR scope
@@ -579,15 +579,18 @@ runner completes normally.
 The product plan defers general OCR, image memories, and chart understanding.
 This user-directed addition is intentionally narrower: the macOS app captures a
 selected screen region, displays it temporarily, and extracts visible text only
-after an explicit user action. The image is not written to Recall's database or
-retained after the capture draft is dismissed.
+after an explicit user action. The image is not written to Recall's database and
+its in-memory preview is cleared when the capture draft is dismissed. The macOS
+selection command uses a random OS temporary PNG that is removed after the
+normal selection flow.
 
 GPT is the default extractor through a provider-neutral localhost API boundary.
 Apple Vision is the selectable local extractor for the demo, and its result
-enters the exact same note and Capture pipeline. The UI must label cloud versus
-on-device processing before extraction. Extracted text is editable and is saved
-through existing SQLite, enrichment, FTS, and semantic retrieval; no second
-notes store or image-attachment schema is introduced.
+enters the exact same Capture pipeline. The UI must label cloud versus on-device
+processing before extraction. Extracted text remains source content; an optional
+personal user note remains a separate field. Both are saved through existing
+SQLite, enrichment, FTS, and semantic retrieval; no second notes store or
+image-attachment schema is introduced.
 
 Screenshot-derived Captures use the explicit `screenshot` source type rather
 than masquerading as clipboard input. Migration 003 transactionally preserves

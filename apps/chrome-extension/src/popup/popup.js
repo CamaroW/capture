@@ -68,6 +68,7 @@ function updateControls() {
   const noteIsValid = characterCount <= CAPTURE_LIMITS.userNote;
   noteCount.textContent = `${characterCount.toLocaleString()} / ${CAPTURE_LIMITS.userNote.toLocaleString()}`;
   noteInput.dataset.invalid = String(!noteIsValid);
+  noteInput.setAttribute("aria-invalid", String(!noteIsValid));
   noteInput.disabled = isSubmitting || captureAttempt.isLocked;
   retryWarning.hidden = !captureAttempt.isLocked;
   saveButton.disabled = isSubmitting || !extractedCapture || !noteIsValid;

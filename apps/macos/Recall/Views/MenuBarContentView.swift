@@ -21,9 +21,11 @@ struct MenuBarContentView: View {
         Button("Capture Screenshot Note", systemImage: "viewfinder") {
             Task { @MainActor in
                 await Task.yield()
-                guard store.prepareScreenshotCapture() else { return }
-                openWindow(id: RecallWindowID.quickCapture)
-                activateApplication()
+                let prepared = store.prepareScreenshotCapture()
+                if prepared || store.quickCaptureError != nil {
+                    openWindow(id: RecallWindowID.quickCapture)
+                    activateApplication()
+                }
             }
         }
         .keyboardShortcut("s")

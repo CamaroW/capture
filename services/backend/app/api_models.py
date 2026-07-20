@@ -21,6 +21,7 @@ from pydantic import (
 from app.limits import (
     OCR_TEXT_MAX_LENGTH,
     SCREENSHOT_BASE64_MAX_LENGTH,
+    SELECTED_TEXT_MAX_LENGTH,
     SOURCE_APP_MAX_LENGTH,
     SOURCE_TITLE_MAX_LENGTH,
     SOURCE_URL_MAX_LENGTH,
@@ -52,7 +53,7 @@ class CaptureCreateRequest(ApiModel):
         max_length=SOURCE_TITLE_MAX_LENGTH,
     )
     source_url: str | None = Field(default=None, max_length=SOURCE_URL_MAX_LENGTH)
-    selected_text: str = Field(max_length=12_000)
+    selected_text: str = Field(max_length=SELECTED_TEXT_MAX_LENGTH)
     surrounding_context: str | None = Field(default=None, max_length=20_000)
     context_truncated: StrictBool = False
     user_note: str | None = Field(default=None, max_length=USER_NOTE_MAX_LENGTH)

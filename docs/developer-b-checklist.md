@@ -6,19 +6,19 @@ Project: Recall
 
 Last updated: 2026-07-20
 
-Current phase: screenshot-to-notes addition published; manual gates B-012/B-013 pending
+Current phase: screenshot-to-notes pre-merge hardening; manual gates B-012/B-013 pending
 
-Current branch: `agent/screenshot-notes-ocr`
+Current branch: `codex/pr4-hardening`
 
-Last verified implementation commit: `fc23cdf`
+Last published feature commit: `f32bb37`; hardening commit pending
 
 Canonical target: `main`
 
 Integration inputs: hardened backend and Chrome tree at `5ea3d2a`, macOS client
 at `12862d3`, backend recovery/startup work at `40c07f0`, keyboard-first Chrome
 capture at `b3a524a`, and current shared contracts/documentation. Their histories
-are combined on `main`. This feature branch passes 210 backend tests, 44/44
-stress scenarios, 16 extension tests, and 37 macOS tests.
+are combined on `main`. The current hardening tree passes 212 backend tests,
+44/44 stress scenarios, 16 extension tests, and 43 macOS tests.
 
 Last baseline cross-check: 2026-07-18 against all sections of
 `docs/product-plan.md`
@@ -58,10 +58,10 @@ Update protocol:
 | 5 | FTS5 keyword retrieval | Complete | Commit `d34a567` pushed; 119 tests and provider-off live/restart proof pass |
 | 6 | Chrome capture | Complete / shortcut polish awaiting manual check | 16 automated tests pass; earlier unpacked selected-text/no-selection Captures displayed in macOS resolve B-009 |
 | 7 | Embeddings and hybrid retrieval | Complete | Real embedding and vague semantic-query proof with non-null score resolve B-008 |
-| 8 | Reliability and demo readiness | P0 integration verified / backlog reduced | Current branch passes 210 backend tests and 44/44 stress scenarios; stale-process recovery, one-command startup, and 16 Chrome tests are verified |
+| 8 | Reliability and demo readiness | P0 integration verified / backlog reduced | Current branch passes 212 backend tests and 44/44 stress scenarios; stale-process recovery, version-aware one-command startup, and 16 Chrome tests are verified |
 | 9 | Optional Apple on-device path | Gated | Decision D-008 accepted; prerequisites unmet |
 | 10 | Final freeze and submission | Pending | Not started |
-| Addition | Screenshot-to-notes OCR | Published / manual proof pending | Commit `fc23cdf`, draft PR #4, 210 backend, 16 extension, and 37 macOS tests pass; B-012/B-013 track live demo proof |
+| Addition | Screenshot-to-notes OCR | Hardened locally / manual proof pending | Draft PR #4 supplied the feature; the hardening tree passes 212 backend, 16 extension, and 43 macOS tests; B-012/B-013 track live demo proof |
 
 The D-023 integration closes B-010, the macOS slice closes B-006, and real
 provider plus unpacked-Chrome evidence closes B-007, B-008, and B-009. B-011 is
@@ -71,8 +71,8 @@ gate.
 
 ## Active addition — screenshot text into notes
 
-Status: `[x]` implemented, verified, and published under D-027; B-012/B-013 are
-manual demo-proof gates rather than unfinished code
+Status: `[~]` implementation and automated hardening verified under D-027;
+B-012/B-013 remain pre-merge manual demo-proof gates
 
 - [x] Audit local and remote branches plus merged PRs for an existing screenshot
   or OCR implementation. None exists; only P2 deferral documentation was found.
@@ -83,21 +83,33 @@ manual demo-proof gates rather than unfinished code
 - [x] Add a bounded, provider-neutral screenshot OCR API contract and GPT
   implementation. Focused backend API/provider run passes 71 tests.
 - [x] Add interactive macOS screenshot selection, a preview, provider choice,
-  and an explicit **Extract text into note** action. The production app builds
-  successfully and the deterministic macOS suite passes 37 tests, including
+  and an explicit **Extract source text** action. The production app builds
+  successfully and the deterministic macOS suite passes 43 tests, including
   the production Apple Vision extractor on generated screenshot text.
 - [x] Save extracted text through the existing Capture storage, enrichment, and
   retrieval pipeline without creating a parallel notes database. Store tests
-  verify the exact `source_type: screenshot` create request and transient-image
-  cleanup; migration 003 preserves old rows and rebuilds synchronized FTS.
-- [x] Test malformed images, provider failure/refusal/empty output, note limits,
+  verify the exact `source_type: screenshot` create request, preserve the
+  independent optional user note, and prevent late OCR results after window
+  close; migration 003 preserves old rows and rebuilds synchronized FTS.
+- [x] Test malformed images, provider failure/refusal/empty output, source limits,
   local extraction, API paths, and the complete existing regression suite.
-  Evidence: 210 backend tests, 44/44 stress scenarios, 16 extension tests plus
-  syntax checks, and 37 macOS tests.
+  Evidence: 212 backend tests, 44/44 stress scenarios, 16 extension tests plus
+  syntax checks, and 43 macOS tests.
+- [x] Add explicit Screen Recording permission preflight and an actionable
+  System Settings error; clear screenshot memory on every dismissal path and
+  invalidate/cancel in-flight extraction work.
+- [x] Document migration 003 as a forward-only rollback boundary: preserve a
+  pre-migration database backup and pre-feature Git tag before merge. The
+  ignored mode-0600 backup
+  `data/backups/recall-pre-migration-003-20260720.db` verifies `integrity_check=ok`
+  at schema `1,2`; annotated tag `rollback/pre-screenshot-ocr` points to
+  `62d8c56` and awaits the authenticated publish step.
 - [x] Document the privacy boundary, demo flow, API surface, errors, and the
   deliberate difference from the outline's deferred full image-memory work.
-- [x] Commit with `unsupervised push` in the commit message, push branch
-  `agent/screenshot-notes-ocr`, and open draft PR #4.
+- [x] Developer B committed with `unsupervised push` in the commit message,
+  pushed `agent/screenshot-notes-ocr`, and opened draft PR #4.
+- [~] Publish `codex/pr4-hardening` as the reviewed successor, close B-012/B-013,
+  then supersede PR #4 and merge the hardened branch into `main`.
 
 ## Scope, schedule, and collaboration guardrails
 
@@ -1218,21 +1230,24 @@ Use IDs `B-###`. Never delete an entry; append resolution and date.
   unchanged 44/44 stress scenarios.
 - Does it block Layer 8? No. Shared P0 live gates are resolved.
 
-## B-012 — Real GPT screenshot extraction proof needs a local API key
+## B-012 — Real GPT screenshot extraction proof is pending
 
 - Opened: 2026-07-20
 - Severity: External integration evidence / non-blocking
-- Status: Open; this worktree has no configured `OPENAI_API_KEY`
+- Status: Open; the ignored root `.env` now configures OpenAI, but the harmless
+  real screenshot request has not yet been rehearsed on the hardening tree
 - Impact: The default GPT route, request shape, provider metadata, refusal,
   incomplete response, invalid output, oversize output, provider failure, and
   missing-key behavior are deterministically tested. A real screenshot request
   to GPT has not been made from this branch.
-- Evidence: Configuration reports `configured=False model=gpt-5.6`. A live
-  provider-off smoke on port 8876 returned the stable HTTP 503 envelope and the
-  Capture list remained empty, proving OCR input was not persisted.
-- Resolution procedure: Add the key only to the ignored root `.env`, run the
-  GPT screenshot row in `apps/macos/README.md`, confirm `200` provider metadata
-  and exact text, then remove no source data because the test image is synthetic.
+- Evidence: The current isolated one-command startup reports
+  `openai_configured=true`. Earlier provider-off smoke on port 8876 returned the
+  stable HTTP 503 envelope and left the Capture list empty, proving OCR input was
+  not persisted. Deterministic provider/request coverage passes.
+- Resolution procedure: Keep the key only in the ignored root `.env`, run the
+  GPT screenshot row in `apps/macos/README.md` on harmless prepared text, confirm
+  cloud provider/model metadata and exact source text, and save only if the test
+  Capture is intentionally wanted.
 - Does it block build, deterministic verification, commit, or push? No. It is a
   transparent manual integration gate before claiming live GPT OCR in the demo.
 
@@ -1243,8 +1258,10 @@ Use IDs `B-###`. Never delete an entry; append resolution and date.
 - Status: Open
 - Impact: The production `/usr/sbin/screencapture -i` path compiles, injected
   screenshot drafts are tested, and the production Apple Vision extractor reads
-  generated screenshot text. Automation did not click-drag the real system
-  overlay because that could capture unrelated private desktop content.
+  generated screenshot text. Permission preflight now exposes an actionable
+  System Settings message, cancellation/close clears the draft, and generation
+  guards reject late extraction results. Automation did not click-drag the real
+  system overlay because that could capture unrelated private desktop content.
 - Resolution procedure: Run the **Screenshot cancellation/limits** and both
   screenshot-note rows in `apps/macos/README.md`, grant Screen Recording access
   if prompted, relaunch Recall, and complete one clean rehearsal.
@@ -1318,6 +1335,17 @@ resolved errors.
 - Resolution: Used the already authenticated GitHub CLI as the publishing
   workflow's documented fallback and opened draft PR #4:
   `https://github.com/CamaroW/capture/pull/4`.
+
+## E-054 — Sandboxed live-start probe could not bind a loopback port
+
+- Date: 2026-07-20
+- Status: Resolved 2026-07-20
+- Symptom: The first isolated `scripts/dev.sh` probe reached Uvicorn but the
+  restricted execution environment rejected its bind to `127.0.0.1:18765` with
+  `operation not permitted`.
+- Resolution: Reran the same test under the host's approved local-network
+  permission with an isolated `/private/tmp` database. Health returned `200`,
+  the version-aware dependency check passed, and Control-C shut down cleanly.
 
 ## E-038 — First real provider call returned HTTP 429
 

@@ -207,12 +207,14 @@ test("popup includes no-selection, saved, processing, and offline states", async
   ]);
 
   assert.match(html, /No text selected; saving page context\./);
-  assert.match(html, /⌘/);
+  assert.match(html, /Ctrl\/⌘/);
+  assert.match(html, /aria-describedby="note-count save-hint retry-warning"/);
   assert.match(html, /Retry uses the original source and note\./);
   assert.match(popupSource, /"Saved\."/);
   assert.match(popupSource, /"Processing with AI…"/);
   assert.match(popupSource, /RECALL_UNAVAILABLE_TITLE/);
   assert.match(popupSource, /chrome\.storage\.local\.remove/);
   assert.match(popupSource, /event\.metaKey \|\| event\.ctrlKey/);
+  assert.match(popupSource, /setAttribute\("aria-invalid"/);
   assert.match(popupSource, /window\.close\(\)/);
 });

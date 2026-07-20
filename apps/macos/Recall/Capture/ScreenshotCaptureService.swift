@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import CoreGraphics
 import Foundation
 
 struct ScreenshotSnapshot: Equatable, Sendable {
@@ -9,6 +10,7 @@ struct ScreenshotSnapshot: Equatable, Sendable {
 
 enum ScreenshotCaptureError: Error, LocalizedError, Equatable {
     case cancelled
+    case permissionDenied
     case unavailable
     case emptyImage
 
@@ -16,11 +18,28 @@ enum ScreenshotCaptureError: Error, LocalizedError, Equatable {
         switch self {
         case .cancelled:
             return "Screenshot selection was cancelled."
+        case .permissionDenied:
+            return "Recall needs Screen Recording permission. Open System Settings > Privacy & Security > Screen & System Audio Recording, enable Recall, then relaunch the app."
         case .unavailable:
             return "Recall could not start macOS screenshot selection."
         case .emptyImage:
             return "The selected screenshot was empty. Try selecting the region again."
         }
+    }
+}
+
+protocol ScreenCapturePermissionServing {
+    func isAuthorized() -> Bool
+    func requestAccess() -> Bool
+}
+
+struct SystemScreenCapturePermissionService: ScreenCapturePermissionServing {
+    func isAuthorized() -> Bool {
+        CGPreflightScreenCaptureAccess()
+    }
+
+    func requestAccess() -> Bool {
+        CGRequestScreenCaptureAccess()
     }
 }
 
@@ -31,8 +50,21 @@ protocol ScreenshotCaptureServing {
 
 @MainActor
 struct SystemScreenshotCaptureService: ScreenshotCaptureServing {
+    private let permissionService: any ScreenCapturePermissionServing
+
+    init(
+        permissionService: any ScreenCapturePermissionServing =
+            SystemScreenCapturePermissionService()
+    ) {
+        self.permissionService = permissionService
+    }
+
     func captureInteractive() throws -> ScreenshotSnapshot {
         let frontmostApplication = NSWorkspace.shared.frontmostApplication
+        guard permissionService.isAuthorized() || permissionService.requestAccess() else {
+            throw ScreenshotCaptureError.permissionDenied
+        }
+
         let sourceApplication = frontmostApplication?.bundleIdentifier == Bundle.main.bundleIdentifier
             ? nil
             : frontmostApplication?.localizedName

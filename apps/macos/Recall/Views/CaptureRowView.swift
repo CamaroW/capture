@@ -57,7 +57,7 @@ struct CaptureRowView: View {
     }
 
     private var sourceIcon: some View {
-        Image(systemName: capture.sourceType == .web ? "globe" : "doc.on.clipboard")
+        Image(systemName: capture.sourceType.systemImageName)
             .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(Color.accentColor)
             .frame(width: 30, height: 30)

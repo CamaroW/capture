@@ -22,7 +22,8 @@ protocol LocalScreenshotTextExtracting: Sendable {
 
 struct AppleVisionScreenshotTextExtractor: LocalScreenshotTextExtracting {
     func extractText(from imageData: Data) async throws -> String {
-        try await Task.detached(priority: .userInitiated) {
+        let extractionTask = Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
             guard let source = CGImageSourceCreateWithData(imageData as CFData, nil),
                   let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
                 throw ScreenshotTextExtractionError.invalidImage
@@ -33,6 +34,7 @@ struct AppleVisionScreenshotTextExtractor: LocalScreenshotTextExtracting {
             request.usesLanguageCorrection = true
             let handler = VNImageRequestHandler(cgImage: image)
             try handler.perform([request])
+            try Task.checkCancellation()
 
             let text = (request.results ?? [])
                 .compactMap { $0.topCandidates(1).first?.string }
@@ -42,6 +44,11 @@ struct AppleVisionScreenshotTextExtractor: LocalScreenshotTextExtracting {
                 throw ScreenshotTextExtractionError.noText
             }
             return text
-        }.value
+        }
+        return try await withTaskCancellationHandler {
+            try await extractionTask.value
+        } onCancel: {
+            extractionTask.cancel()
+        }
     }
 }

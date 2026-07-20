@@ -118,10 +118,20 @@ def test_provider_rejects_empty_or_invalid_output(output: object) -> None:
 
 
 def test_provider_rejects_oversized_text_without_truncating() -> None:
+    assert OCR_TEXT_MAX_LENGTH == 12_000
     provider, _ = provider_for("x" * (OCR_TEXT_MAX_LENGTH + 1))
 
     with pytest.raises(OCRTextTooLongError):
         provider.extract_text(b"image", "image/png")
+
+
+def test_provider_accepts_text_at_selected_source_limit() -> None:
+    exact = "x" * OCR_TEXT_MAX_LENGTH
+    provider, _ = provider_for(exact)
+
+    result = provider.extract_text(b"image", "image/png")
+
+    assert result.text == exact
 
 
 def test_provider_maps_incomplete_response_and_sdk_details_to_safe_failure() -> None:

@@ -83,6 +83,28 @@ Migration 003 transactionally expands `source_type` with `screenshot`, preserves
 every existing Capture column, and rebuilds/backfills the same FTS table and
 triggers. It does not add an image/blob column.
 
+Migration 003 is forward-only for this build: older code knows only migrations
+001–002 and will refuse a database that has applied 003. Before the first run of
+this version against an existing `data/recall.db`, stop the backend and create a
+consistent SQLite backup. A code rollback must restore that pre-003 database as
+well as checkout the pre-feature tag; checking out old code alone is not a valid
+rollback.
+
+The integration backup was created while port 8765 was stopped and verified
+with SQLite `integrity_check=ok` and schema versions `1,2`:
+
+- ignored local backup: `data/backups/recall-pre-migration-003-20260720.db`
+- annotated Git tag at `62d8c56`: `rollback/pre-screenshot-ocr`
+
+To roll back after migration 003, first stop the backend completely and verify
+that no `data/recall.db-wal` or `data/recall.db-shm` file is active. Preserve the
+post-migration database under a new filename in `data/backups/`, copy the exact
+pre-migration backup back to `data/recall.db`, and switch code to the annotated
+tag. Do not overwrite either database copy. Run `PRAGMA integrity_check` and
+confirm schema versions `1,2` before starting the old backend. The local backup
+contains private Recall data, is mode `0600`, and must never be committed or
+shared.
+
 Application code accesses Capture records through `app.repository` rather than
 issuing SQL from HTTP handlers. Source fields and the user note are not accepted
 by the enrichment-update method, preventing an AI update from overwriting them.
@@ -120,11 +142,11 @@ and model metadata so the macOS UI can distinguish it from Apple Vision.
 
 The route normalizes line endings but never silently truncates text. It rejects
 malformed or mismatched image data, empty/refused/incomplete provider output,
-and text larger than the 4,000-character note contract. A missing key returns
-the stable `openai_not_configured` response and points the user to the on-device
-choice. The route does not create a Capture or store the image; after the user
-reviews the note, the macOS client submits the extracted text through the
-ordinary `POST /v1/captures` flow.
+and text larger than the 12,000-character selected-source contract. A missing
+key returns the stable `openai_not_configured` response and points the user to
+the on-device choice. The route does not create a Capture or store the image;
+after the user reviews the source text, the macOS client submits it separately
+from any optional personal note through the ordinary `POST /v1/captures` flow.
 
 ## AI enrichment
 

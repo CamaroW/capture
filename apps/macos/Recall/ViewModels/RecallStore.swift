@@ -114,7 +114,7 @@ final class RecallStore: ObservableObject {
     private var didExplainSearchFallback = false
     private var searchGeneration = 0
     private var attemptedQuickCaptureRequest: CaptureCreateRequest?
-    private var lastExtractedScreenshotText: String?
+    private var activeScreenshotExtractionID: UUID?
     private var screenshotMediaType = "image/png"
     private let foregroundRefreshIntervalNanoseconds: UInt64
     private let pollingIntervalNanoseconds: UInt64
@@ -375,8 +375,10 @@ final class RecallStore: ObservableObject {
 
     @discardableResult
     func prepareClipboardCapture() -> Bool {
+        guard canPrepareNewQuickCapture() else { return false }
         do {
             let snapshot = try clipboardService.readSnapshot()
+            invalidateScreenshotExtraction()
             quickCaptureDraft = QuickCaptureDraft(
                 selectedText: snapshot.text,
                 sourceApplication: snapshot.sourceApplication.map {
@@ -390,11 +392,10 @@ final class RecallStore: ObservableObject {
             quickCaptureError = nil
             screenshotPreviewData = nil
             screenshotExtractionSummary = nil
-            lastExtractedScreenshotText = nil
+            screenshotMediaType = "image/png"
             return true
         } catch {
-            quickCaptureDraft = nil
-            attemptedQuickCaptureRequest = nil
+            clearQuickCapture()
             quickCaptureError = error.recallUserMessage
             notice = AppNotice(style: .warning, message: error.recallUserMessage)
             return false
@@ -403,8 +404,10 @@ final class RecallStore: ObservableObject {
 
     @discardableResult
     func prepareScreenshotCapture() -> Bool {
+        guard canPrepareNewQuickCapture() else { return false }
         do {
             let snapshot = try screenshotCaptureService.captureInteractive()
+            invalidateScreenshotExtraction()
             quickCaptureDraft = QuickCaptureDraft(
                 selectedText: "",
                 sourceApplication: snapshot.sourceApplication.map {
@@ -419,16 +422,14 @@ final class RecallStore: ObservableObject {
             screenshotMediaType = snapshot.mediaType
             screenshotExtractionMode = .gpt
             screenshotExtractionSummary = nil
-            lastExtractedScreenshotText = nil
             attemptedQuickCaptureRequest = nil
             quickCaptureError = nil
             return true
         } catch ScreenshotCaptureError.cancelled {
+            clearQuickCapture()
             return false
         } catch {
-            quickCaptureDraft = nil
-            screenshotPreviewData = nil
-            attemptedQuickCaptureRequest = nil
+            clearQuickCapture()
             quickCaptureError = error.recallUserMessage
             notice = AppNotice(style: .warning, message: error.recallUserMessage)
             return false
@@ -436,30 +437,35 @@ final class RecallStore: ObservableObject {
     }
 
     func extractScreenshotText() async -> Bool {
-        guard var draft = quickCaptureDraft,
+        guard let draft = quickCaptureDraft,
               draft.kind == .screenshot,
               let screenshotPreviewData else {
             return false
         }
         guard !isExtractingScreenshot else { return false }
-        if let lastExtractedScreenshotText,
-           draft.userNote != lastExtractedScreenshotText {
-            quickCaptureError = "Your extracted note has edits. Start a new screenshot before changing extractors so Recall does not overwrite them."
-            return false
-        }
 
+        let extractionID = UUID()
+        let draftID = draft.clientCaptureID
+        let extractionMode = screenshotExtractionMode
+        let mediaType = screenshotMediaType
+        activeScreenshotExtractionID = extractionID
         isExtractingScreenshot = true
         quickCaptureError = nil
-        defer { isExtractingScreenshot = false }
+        defer {
+            if activeScreenshotExtractionID == extractionID {
+                activeScreenshotExtractionID = nil
+                isExtractingScreenshot = false
+            }
+        }
 
         do {
             let text: String
             let summary: String
-            switch screenshotExtractionMode {
+            switch extractionMode {
             case .gpt:
                 let response = try await client.extractScreenshotText(
                     ScreenshotOCRRequest(
-                        mediaType: screenshotMediaType,
+                        mediaType: mediaType,
                         imageBase64: screenshotPreviewData.base64EncodedString()
                     )
                 )
@@ -472,27 +478,35 @@ final class RecallStore: ObservableObject {
                 summary = "Apple Vision · Processed on this Mac"
             }
 
+            guard activeScreenshotExtractionID == extractionID,
+                  !Task.isCancelled,
+                  quickCaptureDraft?.clientCaptureID == draftID else {
+                return false
+            }
             guard let normalized = text.nonEmptyTrimmed else {
                 throw ScreenshotTextExtractionError.noText
             }
             let extractedCount = normalized.unicodeScalars.count
-            guard extractedCount <= Self.maximumUserNoteLength else {
-                quickCaptureError = "The screenshot contains \(extractedCount.formatted()) characters. Select a smaller region so it fits the \(Self.maximumUserNoteLength.formatted())-character note limit."
-                return false
-            }
             guard extractedCount <= Self.maximumSelectedTextLength else {
-                quickCaptureError = "The screenshot contains too much text for one Capture. Select a smaller region and try again."
+                quickCaptureError = "The screenshot contains \(extractedCount.formatted()) characters. Select a smaller region so it fits the \(Self.maximumSelectedTextLength.formatted())-character source limit."
                 return false
             }
 
-            draft.selectedText = normalized
-            draft.userNote = normalized
-            quickCaptureDraft = draft
-            lastExtractedScreenshotText = normalized
+            guard var currentDraft = quickCaptureDraft,
+                  currentDraft.clientCaptureID == draftID,
+                  currentDraft.kind == .screenshot else {
+                return false
+            }
+            currentDraft.selectedText = normalized
+            quickCaptureDraft = currentDraft
             screenshotExtractionSummary = summary
             return true
         } catch {
-            guard !Self.isCancellation(error) else { return false }
+            guard activeScreenshotExtractionID == extractionID,
+                  quickCaptureDraft?.clientCaptureID == draftID,
+                  !Self.isCancellation(error) else {
+                return false
+            }
             quickCaptureError = error.recallUserMessage
             updateConnectionState(after: error)
             return false
@@ -502,6 +516,10 @@ final class RecallStore: ObservableObject {
     func submitQuickCapture() async -> Bool {
         guard let draft = quickCaptureDraft else { return false }
         guard !isSubmittingCapture else { return false }
+        guard !isExtractingScreenshot else {
+            quickCaptureError = "Wait for screenshot text extraction to finish, or cancel it before saving."
+            return false
+        }
 
         guard draft.characterCount <= Self.maximumSelectedTextLength else {
             quickCaptureError = "The selection is \(draft.characterCount.formatted()) characters. Recall can save up to \(Self.maximumSelectedTextLength.formatted()) characters without losing the original text."
@@ -589,13 +607,43 @@ final class RecallStore: ObservableObject {
     }
 
     func clearQuickCapture() {
+        invalidateScreenshotExtraction()
         quickCaptureDraft = nil
         attemptedQuickCaptureRequest = nil
         quickCaptureError = nil
         screenshotPreviewData = nil
         screenshotExtractionSummary = nil
-        lastExtractedScreenshotText = nil
         screenshotMediaType = "image/png"
+    }
+
+    func dismissQuickCapturePresentation() {
+        invalidateScreenshotExtraction()
+        screenshotPreviewData = nil
+        screenshotExtractionSummary = nil
+        screenshotMediaType = "image/png"
+        if !isSubmittingCapture {
+            clearQuickCapture()
+        }
+    }
+
+    private func canPrepareNewQuickCapture() -> Bool {
+        if isSubmittingCapture {
+            let message = "Wait for the current save to finish before starting another Capture."
+            quickCaptureError = message
+            notice = AppNotice(style: .information, message: message)
+            return false
+        }
+        if attemptedQuickCaptureRequest != nil, quickCaptureDraft != nil {
+            let message = "A previous save may already exist. Reopen this draft and retry it, or cancel it before starting another Capture."
+            quickCaptureError = message
+            notice = AppNotice(style: .warning, message: message)
+            return false
+        }
+        return true
+    }
+
+    private func invalidateScreenshotExtraction() {
+        activeScreenshotExtractionID = nil
         isExtractingScreenshot = false
     }
 

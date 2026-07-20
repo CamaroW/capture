@@ -266,11 +266,11 @@ Success is `200 OK`:
 }
 ```
 
-Text is non-empty and capped at the existing 4,000-character note limit. The
-client explicitly copies it into an editable note, then saves through
-`POST /v1/captures` with `source_type: "screenshot"`. Apple Vision is a
-macOS-local implementation of the same
-user-facing extraction step and does not call this endpoint.
+Text is non-empty and capped at the existing 12,000-character `selected_text`
+limit. The client keeps it as reviewed source content and keeps the optional
+4,000-character `user_note` independent, then saves through `POST /v1/captures`
+with `source_type: "screenshot"`. Apple Vision is a macOS-local implementation
+of the same user-facing extraction step and does not call this endpoint.
 
 ### `GET /v1/captures?limit=50&offset=0`
 
@@ -380,7 +380,7 @@ Initial error codes:
 | 502 | `ocr_provider_unavailable` | GPT screenshot extraction failed safely. |
 | 502 | `ocr_refused` | GPT refused the screenshot request. |
 | 502 | `invalid_ocr_output` | GPT returned no usable screenshot text. |
-| 502 | `ocr_text_too_long` | Extracted text exceeds the note contract. |
+| 502 | `ocr_text_too_long` | Extracted text exceeds the selected-source contract. |
 | 503 | `openai_not_configured` | Enrichment or GPT screenshot extraction cannot start without a key/model. |
 | 500 | `internal_error` | Unexpected backend failure. |
 
