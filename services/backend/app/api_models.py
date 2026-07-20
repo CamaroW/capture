@@ -19,11 +19,15 @@ from pydantic import (
 )
 
 from app.limits import (
+    OCR_TEXT_MAX_LENGTH,
+    SCREENSHOT_BASE64_MAX_LENGTH,
+    SELECTED_TEXT_MAX_LENGTH,
     SOURCE_APP_MAX_LENGTH,
     SOURCE_TITLE_MAX_LENGTH,
     SOURCE_URL_MAX_LENGTH,
     USER_NOTE_MAX_LENGTH,
 )
+from app.ocr import decode_screenshot
 from app.models import CaptureRecord, NewCapture
 
 
@@ -42,14 +46,14 @@ class ApiModel(BaseModel):
 
 class CaptureCreateRequest(ApiModel):
     client_capture_id: str | None = None
-    source_type: Literal["web", "clipboard"]
+    source_type: Literal["web", "clipboard", "screenshot"]
     source_app: str | None = Field(default=None, max_length=SOURCE_APP_MAX_LENGTH)
     source_title: str | None = Field(
         default=None,
         max_length=SOURCE_TITLE_MAX_LENGTH,
     )
     source_url: str | None = Field(default=None, max_length=SOURCE_URL_MAX_LENGTH)
-    selected_text: str = Field(max_length=12_000)
+    selected_text: str = Field(max_length=SELECTED_TEXT_MAX_LENGTH)
     surrounding_context: str | None = Field(default=None, max_length=20_000)
     context_truncated: StrictBool = False
     user_note: str | None = Field(default=None, max_length=USER_NOTE_MAX_LENGTH)
@@ -103,7 +107,7 @@ class CaptureResponse(ApiModel):
     updated_at: str
     captured_at: str
     status: Literal["captured", "processing", "ready", "error"]
-    source_type: Literal["web", "clipboard"]
+    source_type: Literal["web", "clipboard", "screenshot"]
     source_app: str | None
     source_title: str | None
     source_url: str | None
@@ -144,6 +148,26 @@ class SearchResult(ApiModel):
 class SearchResponse(ApiModel):
     query: str
     results: list[SearchResult]
+
+
+class ScreenshotOCRRequest(ApiModel):
+    media_type: Literal["image/png", "image/jpeg"]
+    image_base64: str = Field(min_length=1, max_length=SCREENSHOT_BASE64_MAX_LENGTH)
+
+    @model_validator(mode="after")
+    def validate_image(self) -> "ScreenshotOCRRequest":
+        decode_screenshot(self.image_base64, self.media_type)
+        return self
+
+    def image_bytes(self) -> bytes:
+        return decode_screenshot(self.image_base64, self.media_type)
+
+
+class ScreenshotOCRResponse(ApiModel):
+    text: str = Field(min_length=1, max_length=OCR_TEXT_MAX_LENGTH)
+    provider: Literal["openai"]
+    processing_location: Literal["cloud"]
+    model: str
 
 
 class ErrorBody(ApiModel):

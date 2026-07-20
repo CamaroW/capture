@@ -6,8 +6,8 @@ interpretation as separate, searchable layers.
 
 This repository now contains the complete integrated product tree:
 
-- `apps/macos/` — SwiftUI/AppKit clipboard capture, library, detail, lifecycle,
-  and search client;
+- `apps/macos/` — SwiftUI/AppKit clipboard and screenshot-note capture,
+  library, detail, lifecycle, and search client;
 - `apps/chrome-extension/` — build-free Manifest V3 web capture extension;
 - `services/backend/` — loopback FastAPI API, SQLite/FTS5 storage, OpenAI
   enrichment, embeddings, and hybrid retrieval;
@@ -36,12 +36,26 @@ Capture source text and an optional user note
 → retrieve it through keyword and semantic search
 ```
 
+The screenshot-note addition follows the same pipeline: select a screen region,
+choose the default **GPT · Cloud** extractor or **Apple Vision · On device**,
+then explicitly extract source text and optionally add the personal context only
+you know. Those remain separate Capture fields. Recall never writes screenshot
+bytes to SQLite; the macOS selection tool uses a random OS temporary PNG that is
+removed in the normal flow, and closing the draft clears its in-memory preview.
+
 ## Start the backend
 
 The backend starts safely without an OpenAI key. From the repository root, the
 recommended clean-start command creates or repairs the local environment, checks
 configuration and dependencies, starts the service, waits for health, and prints
 the local engineering URLs:
+
+> **Migration 003 boundary:** the screenshot build upgrades an existing default
+> database on first start. On this integration host, the pre-upgrade database is
+> backed up at
+> `data/backups/recall-pre-migration-003-20260720.db`, and the matching code
+> rollback point is `rollback/pre-screenshot-ocr`. Keep both until this release
+> is accepted. See the backend README before replacing or moving the database.
 
 ```bash
 ./scripts/dev.sh
@@ -106,8 +120,11 @@ generated origin to the untracked root `.env` and restart the backend.
 ## Current status
 
 The hardened backend, Chrome extension, and macOS client have been assembled and
-verified in one integration tree. The current tree passes 190 backend tests,
+verified in one integration tree. Baseline counts were 190 backend tests,
 all 44 deterministic stress scenarios, 16 extension tests, and 27 macOS tests.
+The screenshot-note hardening tree passes 213 backend tests, 44/44 stress
+scenarios, 16 extension tests, and 43 macOS tests, including the production
+Apple Vision extractor.
 Live verification covers provider-off keyword fallback, real OpenAI enrichment
 and embeddings, semantic retrieval with a non-null score, and both selected-text
 and no-selection Chrome Captures appearing as ready cards in the macOS app.

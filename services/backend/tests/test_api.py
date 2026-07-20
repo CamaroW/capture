@@ -19,9 +19,17 @@ from app.main import (
     app,
     get_embedding_provider,
     get_enrichment_provider,
+    get_ocr_provider,
     get_repository,
 )
 from app.models import NewCapture
+from app.ocr import (
+    InvalidOCROutputError,
+    OCRFailure,
+    OCRRefusalError,
+    OCRResult,
+    OCRTextTooLongError,
+)
 from app.repository import CaptureRepository
 
 
@@ -41,6 +49,7 @@ def api_client(
         yield client, database_path
     app.dependency_overrides.pop(get_enrichment_provider, None)
     app.dependency_overrides.pop(get_embedding_provider, None)
+    app.dependency_overrides.pop(get_ocr_provider, None)
     get_settings.cache_clear()
 
 
@@ -80,6 +89,33 @@ class InvalidOutputProvider:
 
     def enrich(self, _capture) -> object:
         return self.output
+
+
+class SuccessfulOCRProvider:
+    def __init__(self) -> None:
+        self.calls: list[tuple[bytes, str]] = []
+
+    def extract_text(self, image: bytes, media_type: str) -> OCRResult:
+        self.calls.append((image, media_type))
+        return OCRResult(
+            text="Exact screenshot text",
+            provider="openai",
+            processing_location="cloud",
+            model="gpt-5.6",
+        )
+
+
+class FailedOCRProvider:
+    def extract_text(self, _image: bytes, _media_type: str) -> OCRResult:
+        raise OCRFailure from RuntimeError("private provider trace")
+
+
+class SpecificFailedOCRProvider:
+    def __init__(self, error: OCRFailure) -> None:
+        self.error = error
+
+    def extract_text(self, _image: bytes, _media_type: str) -> OCRResult:
+        raise self.error
 
 
 def test_api_models_match_checked_in_contract_fields() -> None:
@@ -161,6 +197,149 @@ def test_clipboard_capture_without_url_succeeds(
     assert response.status_code == 202
     assert response.json()["source_url"] is None
     assert response.json()["source_title"] is None
+
+
+def test_screenshot_text_capture_uses_explicit_source_type(
+    api_client: tuple[TestClient, Path],
+) -> None:
+    client, _ = api_client
+    payload = {
+        "source_type": "screenshot",
+        "source_app": "Preview",
+        "selected_text": "Exact text extracted from the selected region.",
+        "user_note": "Use this wording in tomorrow's demo.",
+        "captured_at": "2026-07-20T06:00:00-07:00",
+    }
+
+    response = client.post("/v1/captures", json=payload)
+
+    assert response.status_code == 202
+    assert response.json()["source_type"] == "screenshot"
+    assert response.json()["selected_text"] == payload["selected_text"]
+    assert response.json()["user_note"] == payload["user_note"]
+    assert response.json()["user_note"] != response.json()["selected_text"]
+
+
+def test_screenshot_ocr_requires_openai_or_local_client_path(
+    api_client: tuple[TestClient, Path],
+) -> None:
+    client, _ = api_client
+
+    response = client.post(
+        "/v1/ocr",
+        json={
+            "media_type": "image/png",
+            "image_base64": "iVBORw0KGgphYmM=",
+        },
+    )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "openai_not_configured"
+    assert "Apple Vision" in response.json()["error"]["message"]
+
+
+def test_screenshot_ocr_returns_provider_metadata_without_persisting_image(
+    api_client: tuple[TestClient, Path],
+) -> None:
+    client, database_path = api_client
+    provider = SuccessfulOCRProvider()
+    app.dependency_overrides[get_ocr_provider] = lambda: provider
+
+    response = client.post(
+        "/v1/ocr",
+        json={
+            "media_type": "image/png",
+            "image_base64": "iVBORw0KGgphYmM=",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "text": "Exact screenshot text",
+        "provider": "openai",
+        "processing_location": "cloud",
+        "model": "gpt-5.6",
+    }
+    assert provider.calls == [(b"\x89PNG\r\n\x1a\nabc", "image/png")]
+    assert CaptureRepository(database_path, initialize=False).list_captures(
+        limit=10, offset=0
+    ) == []
+
+
+@pytest.mark.parametrize(
+    ("payload", "field"),
+    [
+        ({"media_type": "image/png", "image_base64": "not base64!"}, "body"),
+        (
+            {"media_type": "image/png", "image_base64": "aGVsbG8="},
+            "body",
+        ),
+        (
+            {"media_type": "image/gif", "image_base64": "R0lGODlh"},
+            "body.media_type",
+        ),
+    ],
+)
+def test_screenshot_ocr_rejects_malformed_or_unsupported_images(
+    api_client: tuple[TestClient, Path],
+    payload: dict[str, str],
+    field: str,
+) -> None:
+    client, _ = api_client
+    app.dependency_overrides[get_ocr_provider] = SuccessfulOCRProvider
+
+    response = client.post("/v1/ocr", json=payload)
+
+    assert_validation_error(response)
+    assert any(
+        detail["field"] == field for detail in response.json()["error"]["details"]
+    )
+
+
+def test_screenshot_ocr_maps_provider_failure_to_safe_terminal_error(
+    api_client: tuple[TestClient, Path],
+) -> None:
+    client, _ = api_client
+    app.dependency_overrides[get_ocr_provider] = FailedOCRProvider
+
+    response = client.post(
+        "/v1/ocr",
+        json={
+            "media_type": "image/jpeg",
+            "image_base64": "/9j/YWJj",
+        },
+    )
+
+    assert response.status_code == 502
+    assert response.json()["error"]["code"] == "ocr_provider_unavailable"
+    assert "private provider trace" not in response.text
+
+
+@pytest.mark.parametrize(
+    ("error", "code"),
+    [
+        (OCRRefusalError(), "ocr_refused"),
+        (InvalidOCROutputError(), "invalid_ocr_output"),
+        (OCRTextTooLongError(), "ocr_text_too_long"),
+    ],
+)
+def test_screenshot_ocr_preserves_specific_stable_provider_error_codes(
+    api_client: tuple[TestClient, Path],
+    error: OCRFailure,
+    code: str,
+) -> None:
+    client, _ = api_client
+    app.dependency_overrides[get_ocr_provider] = lambda: SpecificFailedOCRProvider(
+        error
+    )
+
+    response = client.post(
+        "/v1/ocr",
+        json={"media_type": "image/jpeg", "image_base64": "/9j/YWJj"},
+    )
+
+    assert response.status_code == 502
+    assert response.json()["error"]["code"] == code
 
 
 def test_configured_provider_enriches_capture_after_create(
@@ -559,6 +738,19 @@ def test_overlong_content_fails_visibly(
     payload[field] = value
 
     assert_validation_error(client.post("/v1/captures", json=payload))
+
+
+def test_selected_text_at_exact_limit_succeeds(
+    api_client: tuple[TestClient, Path],
+) -> None:
+    client, _ = api_client
+    payload = fixture_request()
+    payload["selected_text"] = "x" * 12_000
+
+    response = client.post("/v1/captures", json=payload)
+
+    assert response.status_code == 202
+    assert response.json()["selected_text"] == payload["selected_text"]
 
 
 @pytest.mark.parametrize(

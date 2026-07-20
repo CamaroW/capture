@@ -46,6 +46,27 @@ struct CaptureCreateRequest: Codable, Equatable, Sendable {
         )
     }
 
+    static func screenshot(
+        clientCaptureID: String,
+        capturedAt: String,
+        text: String,
+        sourceApp: String?,
+        userNote: String?
+    ) -> CaptureCreateRequest {
+        CaptureCreateRequest(
+            clientCaptureID: clientCaptureID,
+            sourceType: .screenshot,
+            sourceApp: sourceApp,
+            sourceTitle: nil,
+            sourceURL: nil,
+            selectedText: text,
+            surroundingContext: nil,
+            contextTruncated: false,
+            userNote: userNote,
+            capturedAt: capturedAt
+        )
+    }
+
     static func currentTimestamp() -> String {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

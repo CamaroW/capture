@@ -21,6 +21,8 @@ from app.api_models import (
     CaptureListResponse,
     CaptureResponse,
     ErrorEnvelope,
+    ScreenshotOCRRequest,
+    ScreenshotOCRResponse,
     SearchResponse,
     SearchResult,
 )
@@ -40,6 +42,7 @@ from app.enrichment import (
     mark_enrichment_not_configured,
 )
 from app.limits import SEARCH_QUERY_MAX_LENGTH
+from app.ocr import OCRFailure, OCRProvider, OpenAIOCRProvider
 from app.repository import (
     CaptureAlreadyProcessingError,
     CaptureNotFoundError,
@@ -170,6 +173,16 @@ def get_embedding_provider() -> EmbeddingProvider | None:
     )
 
 
+def get_ocr_provider() -> OCRProvider | None:
+    settings = get_settings()
+    if not settings.openai_configured or settings.openai_api_key is None:
+        return None
+    return OpenAIOCRProvider(
+        api_key=settings.openai_api_key.get_secret_value(),
+        model=settings.openai_model,
+    )
+
+
 @app.exception_handler(RequestValidationError)
 async def request_validation_error(
     _: Request,
@@ -283,6 +296,44 @@ def create_capture(
             record.id,
         )
     return CaptureResponse.from_record(record)
+
+
+@app.post(
+    "/v1/ocr",
+    response_model=ScreenshotOCRResponse,
+    responses={
+        status.HTTP_502_BAD_GATEWAY: {"model": ErrorEnvelope},
+        status.HTTP_503_SERVICE_UNAVAILABLE: {"model": ErrorEnvelope},
+    },
+)
+def extract_screenshot_text(
+    request: ScreenshotOCRRequest,
+    provider: Annotated[OCRProvider | None, Depends(get_ocr_provider)],
+) -> ScreenshotOCRResponse | JSONResponse:
+    if provider is None:
+        return error_response(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            code="openai_not_configured",
+            message=(
+                "GPT screenshot extraction is not configured. "
+                "Use Apple Vision on device or configure OpenAI."
+            ),
+        )
+
+    try:
+        result = provider.extract_text(request.image_bytes(), request.media_type)
+    except OCRFailure as error:
+        return error_response(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            code=error.code,
+            message=error.safe_message,
+        )
+    return ScreenshotOCRResponse(
+        text=result.text,
+        provider=result.provider,
+        processing_location=result.processing_location,
+        model=result.model,
+    )
 
 
 @app.get("/v1/captures", response_model=CaptureListResponse)

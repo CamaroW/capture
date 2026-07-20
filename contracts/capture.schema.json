@@ -15,7 +15,8 @@
       "type": "string",
       "enum": [
         "web",
-        "clipboard"
+        "clipboard",
+        "screenshot"
       ]
     },
     "source_app": {

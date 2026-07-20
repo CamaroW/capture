@@ -6,19 +6,19 @@ Project: Recall
 
 Last updated: 2026-07-20
 
-Current phase: shared P0 integration verified; Layer 10 submission work open
+Current phase: screenshot-to-notes live verification complete; delivery tracked by PR #5
 
-Current branch: `main`
+Current branch: `codex/pr4-hardening`
 
-Last verified commit: current branch HEAD (see Git history)
+Last published feature commit: `f32bb37`; hardening series through `878dede` pushed
 
 Canonical target: `main`
 
 Integration inputs: hardened backend and Chrome tree at `5ea3d2a`, macOS client
 at `12862d3`, backend recovery/startup work at `40c07f0`, keyboard-first Chrome
 capture at `b3a524a`, and current shared contracts/documentation. Their histories
-are combined on `main`. The current tree passes 190 backend tests, 44/44 stress
-scenarios, 16 extension tests, and 27 macOS tests.
+are combined on `main`. The current hardening tree passes 213 backend tests,
+44/44 stress scenarios, 16 extension tests, and 43 macOS tests.
 
 Last baseline cross-check: 2026-07-18 against all sections of
 `docs/product-plan.md`
@@ -58,15 +58,61 @@ Update protocol:
 | 5 | FTS5 keyword retrieval | Complete | Commit `d34a567` pushed; 119 tests and provider-off live/restart proof pass |
 | 6 | Chrome capture | Complete / shortcut polish awaiting manual check | 16 automated tests pass; earlier unpacked selected-text/no-selection Captures displayed in macOS resolve B-009 |
 | 7 | Embeddings and hybrid retrieval | Complete | Real embedding and vague semantic-query proof with non-null score resolve B-008 |
-| 8 | Reliability and demo readiness | P0 integration verified / backlog reduced | Current tree passes 190 backend tests and 44/44 stress scenarios; stale-process recovery, one-command startup, and 16 Chrome tests are verified |
+| 8 | Reliability and demo readiness | P0 integration verified / backlog reduced | Current branch passes 213 backend tests and 44/44 stress scenarios; stale-process recovery, version-aware one-command startup, and 16 Chrome tests are verified |
 | 9 | Optional Apple on-device path | Gated | Decision D-008 accepted; prerequisites unmet |
 | 10 | Final freeze and submission | Pending | Not started |
+| Addition | Screenshot-to-notes OCR | Complete and verified | PR #5 supersedes draft PR #4; 213 backend, 44/44 stress, 16 extension, and 43 macOS tests pass; live GPT, Apple Vision, permission, cancellation, and dismissal flows pass |
 
 The D-023 integration closes B-010, the macOS slice closes B-006, and real
 provider plus unpacked-Chrome evidence closes B-007, B-008, and B-009. B-011 is
 resolved by the hardening work. Remaining work is the explicit Layer 8 backlog
 and Layer 10 submission/release material, not a missing shared P0 integration
 gate.
+
+## Active addition — screenshot text into notes
+
+Status: `[x]` implementation plus automated and manual hardening verified under
+D-027; the reviewed change is recorded in PR #5
+
+- [x] Audit local and remote branches plus merged PRs for an existing screenshot
+  or OCR implementation. None exists; only P2 deferral documentation was found.
+- [x] Keep screenshots transient: do not persist image bytes or add an attachment
+  schema in this bounded feature.
+- [x] Keep GPT as the default extraction route and define Apple Vision as the
+  explicit on-device alternative for the locality demonstration.
+- [x] Add a bounded, provider-neutral screenshot OCR API contract and GPT
+  implementation. Focused backend API/provider run passes 71 tests.
+- [x] Add interactive macOS screenshot selection, a preview, provider choice,
+  and an explicit **Extract source text** action. The production app builds
+  successfully and the deterministic macOS suite passes 43 tests, including
+  the production Apple Vision extractor on generated screenshot text.
+- [x] Save extracted text through the existing Capture storage, enrichment, and
+  retrieval pipeline without creating a parallel notes database. Store tests
+  verify the exact `source_type: screenshot` create request, preserve the
+  independent optional user note, and prevent late OCR results after window
+  close; migration 003 preserves old rows and rebuilds synchronized FTS.
+- [x] Test malformed images, provider failure/refusal/empty output, source limits,
+  local extraction, API paths, and the complete existing regression suite.
+  Evidence: 213 backend tests, 44/44 stress scenarios, 16 extension tests plus
+  syntax checks, and 43 macOS tests.
+- [x] Add explicit Screen Recording permission preflight and an actionable
+  System Settings error; clear screenshot memory on every dismissal path and
+  invalidate/cancel in-flight extraction work.
+- [x] Document migration 003 as a forward-only rollback boundary: preserve a
+  pre-migration database backup and pre-feature Git tag before merge. The
+  ignored mode-0600 backup
+  `data/backups/recall-pre-migration-003-20260720.db` verifies `integrity_check=ok`
+  at schema `1,2`; pushed annotated tag `rollback/pre-screenshot-ocr` points to
+  `62d8c56`.
+- [x] Document the privacy boundary, demo flow, API surface, errors, and the
+  deliberate difference from the outline's deferred full image-memory work.
+- [x] Developer B committed with `unsupervised push` in the commit message,
+  pushed `agent/screenshot-notes-ocr`, and opened draft PR #4.
+- [x] Complete harmless real GPT OCR and interactive macOS permission,
+  cancellation, Apple Vision, and dismiss-during-extraction proof. B-012 and
+  B-013 record the 2026-07-20 evidence.
+- [x] PR #5 publishes `codex/pr4-hardening` as the reviewed successor to PR #4;
+  the final remote-state check controls its merge into `main`.
 
 ## Scope, schedule, and collaboration guardrails
 
@@ -1187,10 +1233,122 @@ Use IDs `B-###`. Never delete an entry; append resolution and date.
   unchanged 44/44 stress scenarios.
 - Does it block Layer 8? No. Shared P0 live gates are resolved.
 
+## B-012 — Real GPT screenshot extraction proof
+
+- Opened: 2026-07-20
+- Severity: External integration evidence / non-blocking
+- Status: Resolved 2026-07-20
+- Impact: Before resolution, only the default GPT route, request shape, provider
+  metadata, refusal, incomplete response, invalid output, oversize output,
+  provider failure, and missing-key behavior were deterministically tested.
+- Evidence: The current isolated one-command startup reports
+  `openai_configured=true`. Earlier provider-off smoke on port 8876 returned the
+  stable HTTP 503 envelope and left the Capture list empty, proving OCR input was
+  not persisted. Deterministic provider/request coverage passes.
+- Resolution: Developer A ran the hardening tree against the isolated
+  `/private/tmp` database with the ignored root `.env`. GPT extracted harmless
+  prepared screenshot text into the source field, left the personal note
+  independent, and saved/displayed the two sections correctly.
+- Does it block build, deterministic verification, commit, or push? No. The
+  manual integration gate is now closed.
+
+## B-013 — Interactive macOS screenshot permission flow
+
+- Opened: 2026-07-20
+- Severity: Manual UI/demo evidence / non-blocking
+- Status: Resolved 2026-07-20
+- Impact: The production `/usr/sbin/screencapture -i` path compiles, injected
+  screenshot drafts are tested, and the production Apple Vision extractor reads
+  generated screenshot text. Permission preflight now exposes an actionable
+  System Settings message, cancellation/close clears the draft, and generation
+  guards reject late extraction results. Automation did not click-drag the real
+  system overlay because that could capture unrelated private desktop content.
+- Resolution: Developer A completed the real Screen Recording permission flow,
+  cancelled the system region selector without creating a draft, verified both
+  GPT and Apple Vision extraction, then dismissed an extraction through the
+  available Cancel action. After ten seconds a fresh screenshot produced only
+  its fresh result; no old preview or late OCR result returned.
+- Does it block build, automated verification, commit, or push? No. The manual
+  permission and selection gate is now closed.
+
 # Errors encountered
 
 Use IDs `E-###`. Record the original symptom and the resolution. Do not erase
 resolved errors.
+
+## E-048 — Screenshot tests first awaited inside XCTest autoclosures
+
+- Date: 2026-07-20
+- Status: Resolved 2026-07-20
+- Command: `./scripts/test-macos.sh`
+- Symptom: The production target built, but the new test target failed because
+  `XCTAssert*` and `XCTUnwrap` autoclosures do not allow `await` expressions.
+- Resolution: Awaited actor/store values into local constants before passing
+  them to XCTest assertions. The deterministic suite then passed all 34 tests.
+
+## E-049 — Production Vision test rerun used the wrong relative script path
+
+- Date: 2026-07-20
+- Status: Resolved 2026-07-20
+- Command: `xcodegen generate && ../../../scripts/test-macos.sh` from
+  `apps/macos`
+- Symptom: Xcode project generation succeeded, then zsh reported that the test
+  script did not exist; no test command ran.
+- Resolution: Reran `../../scripts/test-macos.sh`; all 36 tests passed,
+  including both production Apple Vision tests.
+
+## E-050 — Full regression shell could not find npm
+
+- Date: 2026-07-20
+- Status: Resolved 2026-07-20
+- Command: `npm test` in `apps/chrome-extension`
+- Symptom: zsh returned `command not found: npm`, so no extension test ran in
+  that attempt. Parallel backend verification still passed 206 tests and all 44
+  stress scenarios.
+- Resolution: Loaded the bundled workspace runtime and ran the suite with its
+  exact Node executable; all 16 tests passed.
+
+## E-051 — Extension syntax-check glob assumed flat source files
+
+- Date: 2026-07-20
+- Status: Resolved 2026-07-20
+- Symptom: The bundled Node runtime passed all 16 extension tests, then zsh
+  rejected `src/*.js` because JavaScript files live in nested directories. The
+  combined command therefore exited nonzero after the successful tests.
+- Resolution: Enumerated tracked `.js`/`.mjs` files with `rg --files`; every
+  file passed Node's syntax checker.
+
+## E-052 — First live OCR smoke port was already occupied
+
+- Date: 2026-07-20
+- Status: Resolved 2026-07-20
+- Symptom: The isolated provider-off backend applied migrations to its temporary
+  database, then exited cleanly because another process already owned loopback
+  port 8765.
+- Resolution: Preserved the existing process and reran on port 8876. The OCR
+  route returned the expected provider-off 503, list returned 200 with no
+  Captures, and the temporary service shut down cleanly.
+
+## E-053 — GitHub app could not create the draft pull request
+
+- Date: 2026-07-20
+- Status: Resolved 2026-07-20
+- Symptom: The branch pushed successfully, but the GitHub app returned HTTP 403
+  `Resource not accessible by integration` for draft-PR creation.
+- Resolution: Used the already authenticated GitHub CLI as the publishing
+  workflow's documented fallback and opened draft PR #4:
+  `https://github.com/CamaroW/capture/pull/4`.
+
+## E-054 — Sandboxed live-start probe could not bind a loopback port
+
+- Date: 2026-07-20
+- Status: Resolved 2026-07-20
+- Symptom: The first isolated `scripts/dev.sh` probe reached Uvicorn but the
+  restricted execution environment rejected its bind to `127.0.0.1:18765` with
+  `operation not permitted`.
+- Resolution: Reran the same test under the host's approved local-network
+  permission with an isolated `/private/tmp` database. Health returned `200`,
+  the version-aware dependency check passed, and Control-C shut down cleanly.
 
 ## E-038 — First real provider call returned HTTP 429
 

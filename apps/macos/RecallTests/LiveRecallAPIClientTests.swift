@@ -173,6 +173,41 @@ final class LiveRecallAPIClientTests: XCTestCase {
         XCTAssertNil(object["source_url"])
     }
 
+    func testScreenshotOCRSendsBoundedJSONPostAndDecodesProviderMetadata() async throws {
+        let recorder = RequestRecorder()
+        URLProtocolStub.install { request in
+            recorder.record(request)
+            return try stubbedResponse(
+                for: request,
+                statusCode: 200,
+                data: Data(
+                    #"{"text":"Exact OCR text","provider":"openai","processing_location":"cloud","model":"gpt-5.6"}"#.utf8
+                )
+            )
+        }
+        let request = ScreenshotOCRRequest(
+            mediaType: "image/png",
+            imageBase64: Data([1, 2, 3]).base64EncodedString()
+        )
+
+        let response = try await makeClient().extractScreenshotText(request)
+
+        XCTAssertEqual(response.text, "Exact OCR text")
+        XCTAssertEqual(response.processingLocation, .cloud)
+        XCTAssertEqual(response.provider, .openai)
+        XCTAssertEqual(response.model, "gpt-5.6")
+        let sent = try XCTUnwrap(recorder.request)
+        XCTAssertEqual(sent.httpMethod, "POST")
+        XCTAssertEqual(sent.url?.path, "/v1/ocr")
+        XCTAssertEqual(sent.timeoutInterval, 50)
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: try requestBodyData(from: sent))
+                as? [String: Any]
+        )
+        XCTAssertEqual(object["media_type"] as? String, "image/png")
+        XCTAssertEqual(object["image_base64"] as? String, request.imageBase64)
+    }
+
     func testStableErrorEnvelopePreservesStatusCodeCodeAndMessage() async throws {
         let recorder = RequestRecorder()
         let responseData = Data(

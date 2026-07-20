@@ -4,6 +4,24 @@ import XCTest
 @testable import Recall
 
 final class RecallContractTests: XCTestCase {
+    func testScreenshotSourceTypeRoundTripsThroughCreateRequest() throws {
+        let request = CaptureCreateRequest.screenshot(
+            clientCaptureID: "149f51e1-8c18-42d4-9778-3f3b062527a2",
+            capturedAt: "2026-07-20T06:00:00.000Z",
+            text: "Screenshot source",
+            sourceApp: "Preview",
+            userNote: "Screenshot note"
+        )
+
+        let data = try JSONEncoder().encode(request)
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+
+        XCTAssertEqual(request.sourceType, .screenshot)
+        XCTAssertEqual(object["source_type"] as? String, "screenshot")
+    }
+
     func testReadyCaptureFixtureDecodesCompleteCapture() throws {
         let capture = try JSONDecoder().decode(
             Capture.self,

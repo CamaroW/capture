@@ -7,6 +7,7 @@ protocol RecallAPIClient: Sendable {
     func getCapture(id: String) async throws -> Capture
     func search(query: String, limit: Int) async throws -> SearchResponse
     func enrich(id: String) async throws -> Capture
+    func extractScreenshotText(_ request: ScreenshotOCRRequest) async throws -> ScreenshotOCRResponse
 }
 
 extension RecallAPIClient {
@@ -81,18 +82,30 @@ struct LiveRecallAPIClient: RecallAPIClient, Sendable {
         )
     }
 
+    func extractScreenshotText(_ request: ScreenshotOCRRequest) async throws -> ScreenshotOCRResponse {
+        try await send(
+            path: ["v1", "ocr"],
+            method: "POST",
+            body: request,
+            expectedStatusCodes: [200],
+            timeoutInterval: 50
+        )
+    }
+
     private func send<Response: Decodable>(
         path: [String],
         method: String = "GET",
         queryItems: [URLQueryItem] = [],
-        expectedStatusCodes: Set<Int>
+        expectedStatusCodes: Set<Int>,
+        timeoutInterval: TimeInterval = 15
     ) async throws -> Response {
         try await send(
             path: path,
             method: method,
             queryItems: queryItems,
             bodyData: nil,
-            expectedStatusCodes: expectedStatusCodes
+            expectedStatusCodes: expectedStatusCodes,
+            timeoutInterval: timeoutInterval
         )
     }
 
@@ -101,7 +114,8 @@ struct LiveRecallAPIClient: RecallAPIClient, Sendable {
         method: String,
         queryItems: [URLQueryItem] = [],
         body: Request,
-        expectedStatusCodes: Set<Int>
+        expectedStatusCodes: Set<Int>,
+        timeoutInterval: TimeInterval = 15
     ) async throws -> Response {
         let encoder = JSONEncoder()
         let data = try encoder.encode(body)
@@ -110,7 +124,8 @@ struct LiveRecallAPIClient: RecallAPIClient, Sendable {
             method: method,
             queryItems: queryItems,
             bodyData: data,
-            expectedStatusCodes: expectedStatusCodes
+            expectedStatusCodes: expectedStatusCodes,
+            timeoutInterval: timeoutInterval
         )
     }
 
@@ -119,7 +134,8 @@ struct LiveRecallAPIClient: RecallAPIClient, Sendable {
         method: String,
         queryItems: [URLQueryItem],
         bodyData: Data?,
-        expectedStatusCodes: Set<Int>
+        expectedStatusCodes: Set<Int>,
+        timeoutInterval: TimeInterval
     ) async throws -> Response {
         var url = baseURL
         for component in path {
@@ -139,7 +155,7 @@ struct LiveRecallAPIClient: RecallAPIClient, Sendable {
         var request = URLRequest(url: requestURL)
         request.httpMethod = method
         request.httpBody = bodyData
-        request.timeoutInterval = 15
+        request.timeoutInterval = timeoutInterval
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if bodyData != nil {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")

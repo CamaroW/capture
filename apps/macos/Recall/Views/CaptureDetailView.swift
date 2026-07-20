@@ -30,7 +30,14 @@ struct CaptureDetailView: View {
                     }
                 }
 
-                RecallSection("Original selection", icon: "quote.opening") {
+                RecallSection(
+                    capture.sourceType == .screenshot
+                        ? "Extracted source text"
+                        : "Original selection",
+                    icon: capture.sourceType == .screenshot
+                        ? "text.viewfinder"
+                        : "quote.opening"
+                ) {
                     Text(capture.selectedText.nonEmptyTrimmed ?? "No text was selected.")
                         .font(.body)
                         .lineSpacing(3)
@@ -172,7 +179,7 @@ struct CaptureDetailView: View {
     }
 
     private var sourceSection: some View {
-        RecallSection("Source", icon: capture.sourceType == .web ? "globe" : "doc.on.clipboard") {
+        RecallSection("Source", icon: capture.sourceType.systemImageName) {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(capture.sourceLabel)

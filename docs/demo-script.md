@@ -1,67 +1,54 @@
-# Recall Layer 3 demo script
+# Recall demo script
 
-This is a truthful 90–120 second walkthrough of the currently implemented
-vertical slice: real clipboard capture, durable backend storage, and macOS
-display. It deliberately does not present AI enrichment, backend retrieval, or
-Chrome capture as complete.
+This is a truthful 90–120 second walkthrough of the integrated product plus the
+D-027 screenshot-to-note addition. It demonstrates GPT first, then the same
+text-extraction step with Apple Vision on device. Screenshot images are never
+presented as stored memories: only reviewed text enters Recall.
 
-## Preflight (not part of the timed demo)
+## Preflight
 
-1. Start `services/backend` and confirm
-   `curl --fail http://127.0.0.1:8765/health` succeeds.
-2. Build Recall once, run it from Xcode, and confirm the main window says
-   **Connected**.
-3. Open TextEdit with this sample passage ready to select:
+1. Run `./scripts/dev.sh`, confirm `/health` is healthy, and verify the untracked
+   `OPENAI_API_KEY` has model access.
+2. Launch Recall and confirm **Connected · AI ready**.
+3. Put this high-contrast text on screen for the screenshot region:
 
-   > Set WorkingDirectory to the project directory before restarting the
-   > service; otherwise Nginx can return 502 even when the app runs manually.
+   > Keep screenshot images transient. Save only reviewed text and personal
+   > context into the searchable memory pipeline.
 
-4. Have this note ready to type or paste:
+4. Prepare a second region with `Recall Local Vision 2026` for the locality
+   comparison.
+5. Complete one private rehearsal. Grant macOS Screen Recording permission if
+   prompted, then relaunch Recall before recording.
 
-   > This was the only VPS fix that worked; check the deployment path next time.
-
-5. Keep Xcode ready to stop and rerun the already-built app. Do not seed mock
-   data or open an AI-completed preview record for this Layer 3 demo.
-
-## Timed walkthrough (about 118 seconds)
+## Timed walkthrough
 
 | Time | On screen | Suggested narration |
 | --- | --- | --- |
-| 0–8 s | Show Recall's main window and green **Connected** indicator. | “Recall turns something useful I see on my Mac into a durable contextual memory. This is today's real Layer 3 slice, connected to the local backend.” |
-| 8–20 s | Switch to TextEdit, select the prepared passage, and copy it. | “I found a deployment fix that only makes sense with the reason I care about it.” |
-| 20–35 s | Use the Recall menu-bar item and choose **Capture Clipboard**. Pause on the quick-capture form. | “Recall preserves the exact source text and best-effort source application, then asks only for the context that belongs to me.” |
-| 35–50 s | Enter the prepared VPS note and press **Save**. | “The note stays separate from the source. Saving writes the original capture to SQLite before any future AI work.” |
-| 50–72 s | Select the new first row. Point to `Processing`, **Your note**, **Original selection**, and **Source**. | “This response is live, not mock data. Layer 3 intentionally remains processing: the source and my note are already safe, while AI fields are still empty.” |
-| 72–92 s | Quit Recall from its menu-bar menu, then rerun the prebuilt app from Xcode. Select the newest item after it reloads. | “The app has no hidden local copy. After a full relaunch it reads the same record back from the backend database.” |
-| 92–108 s | Search for `VPS WorkingDirectory` and show the same item remains. If the fallback notice appears, leave it visible briefly. | “The current client can locally filter its loaded library when the search endpoint is absent. This is an explicit fallback, not the planned FTS or semantic search.” |
-| 108–118 s | Clear the search and return to the detail. | “Developer 2's next integrations unlock structured AI enrichment, backend retrieval, and Chrome capture. The durable source-first foundation shown here is already working.” |
+| 0–10 s | Show the Recall library and **Connected · AI ready**. | “Recall preserves what I found, why it matters to me, and an AI interpretation as separate searchable layers.” |
+| 10–24 s | Choose **Capture Screenshot Note** and drag over the prepared sentence. | “For information I cannot select normally, I can capture just one screen region.” |
+| 24–38 s | Pause on the preview and **GPT · Cloud** label, then choose **Extract source text**. | “GPT is the default. Recall shows the image and processing boundary before anything is sent, and extraction happens only when I ask.” |
+| 38–52 s | Show the exact extracted source, add a separate personal note, then save. | “The image is temporary. Reviewed source text and my own context stay separate in the same local SQLite, enrichment, and retrieval pipeline.” |
+| 52–68 s | Open the new card, show **Your note** and **Extracted source text**, then search for a paraphrase once it is ready. | “There is no screenshot database to drift from the rest of the product. The text becomes an ordinary memory with structured understanding and hybrid retrieval.” |
+| 68–84 s | Start a second screenshot, select **Apple Vision · On device**, and turn Wi-Fi off before extracting. | “The identical step can also run with Apple Vision. The image stays on this Mac and no OCR request reaches the backend.” |
+| 84–100 s | Extract `Recall Local Vision 2026`, show **Processed on this Mac**, then cancel the draft and turn Wi-Fi back on. | “Locality is visible and testable, not a hidden implementation detail. Cancel clears the temporary image and saves nothing.” |
+| 100–112 s | Return to the GPT-created memory and its search result. | “GPT remains the primary judged workflow; local intelligence is a privacy-preserving alternative behind the same experience.” |
 
 ## Failure downgrade plan
 
-Use the first applicable recovery. Keep the boundary statement in the
-narration; do not replace a failed live capability with an unlabelled mock.
-
-| Failure | Recovery during the demo | What to say |
+| Failure | Safe recovery | Truthful narration |
 | --- | --- | --- |
-| Recall starts offline | Check the health URL, start or restart `services/backend`, then choose **Try Again** or **Refresh**. If it cannot recover within 15 seconds, switch to the backup recording. | “The macOS client depends on the loopback persistence service; it does not pretend an offline save succeeded.” |
-| Clipboard form says nothing is available | Return to TextEdit, select the prepared plain text, press `Command-C`, and immediately choose **Capture Clipboard** again. | “The current stable path is explicit clipboard text.” |
-| Source application says `Clipboard` instead of `TextEdit` | Continue; the captured text is authoritative. Mention that application detection is best effort. | “Source-app attribution is best effort in this layer; Accessibility and window-title capture are not connected yet.” |
-| Save fails or spins | Leave the draft open, verify backend health, restart the service if needed, and press **Save** once more. Never say the record is durable until it appears in the list. | “Recall keeps the draft visible on transport failure and only confirms after backend persistence succeeds.” |
-| Relaunch takes too long | Skip the relaunch. Refresh the app, then show `curl 'http://127.0.0.1:8765/v1/captures?limit=1&offset=0'` in the prepared terminal as persistence evidence. | “This newest record is being read from SQLite through the live list API.” |
-| Search shows an availability notice or unexpected local results | Search one exact distinctive term such as `WorkingDirectory`, or omit the search segment and spend the time on source/note separation. | “Search here is only the client fallback over the newest 50 loaded records; backend ranking is not part of Layer 3.” |
-| New capture never leaves `Processing` | Continue with the raw capture detail; this is the expected Layer 3 state. Do not press **Retry AI**. | “AI enrichment has not been connected yet, but failure or delay cannot erase the original capture.” |
-| Asked to show AI, semantic search, or Chrome | Point to the populated source-first detail and state the ownership boundary. If available, reference the Developer 2 checklist rather than simulating the feature. | “Those capabilities unlock after Developer 2 connects Layers 4–7; this demo does not claim they are live today.” |
+| macOS does not show region selection | Open System Settings → Privacy & Security → Screen Recording, allow Recall, relaunch, and use the backup recording if the delay exceeds 15 seconds. | “Interactive screen selection requires the normal macOS recording permission.” |
+| GPT returns `openai_not_configured` or another stable OCR error | Switch the same draft to **Apple Vision · On device** and extract locally; do not claim GPT succeeded. | “The cloud extractor is unavailable, so Recall keeps the screenshot draft local and offers the on-device path.” |
+| No text is found | Select the prepared high-contrast region again. | “Recall does not fabricate a note when an extractor finds no usable text.” |
+| Extracted text exceeds the source limit | Capture a smaller region. Never accept a silently truncated result. | “One extracted source is bounded to 12,000 characters so the reviewed text is preserved exactly.” |
+| Save or enrichment fails | Keep the draft visible and check backend health. If creation succeeded but enrichment failed, show the source-preserving error and retry later. | “Persistence is local and precedes AI processing; a provider failure cannot delete the source or note.” |
+| Apple Vision works but save fails while Wi-Fi is off | Turn Wi-Fi back on and save only after extraction, or cancel the draft. | “Extraction is local; the normal Capture pipeline still uses the loopback backend, and later AI enrichment may use OpenAI.” |
 
-## After Developer 2 integration
+## Claims to avoid
 
-Replace—not silently append—the fallback moments only after their exit gates
-pass:
-
-- Layer 4: wait for the same card to become `ready`, then show the generated
-  title, contextual summary, memory details, and tags.
-- Layer 5: replace the local-filter disclaimer with a real backend keyword
-  search demonstration.
-- Layer 6: begin from a Chrome selection that supplies URL, title, selection,
-  and surrounding context.
-- Layer 7: use a natural-language paraphrase only after hybrid retrieval is
-  verified; until then, use exact terms and call the behavior keyword search.
+- Do not say Recall stores or retrieves screenshot images; D-027 stores text
+  only.
+- Do not describe Apple Vision OCR as local AI enrichment or local semantic
+  search; those remain separately gated by D-008.
+- Do not hide the GPT/cloud label, permission prompt, provider failure, or
+  source-preserving error state.

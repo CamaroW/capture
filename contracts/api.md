@@ -29,6 +29,9 @@ app, and Chrome extension. Product behavior remains governed by
 
 The client may omit optional fields instead of sending `null`. At least one of
 `selected_text`, `surrounding_context`, or `source_title` must contain text.
+`source_type` is `web`, `clipboard`, or `screenshot`. A screenshot Capture
+contains reviewed extracted text; the source image is not part of the Capture
+representation.
 
 ### Text limits
 
@@ -232,6 +235,43 @@ array columns required to decode stored Captures. It returns `503` with
 - Response: Capture with status `processing`
 - Validation failure: `422 Unprocessable Entity`
 
+### `POST /v1/ocr`
+
+Performs one explicit GPT screenshot text-extraction request. The screenshot is
+transient input and this endpoint does not create a Capture or persist image
+bytes.
+
+Request:
+
+```json
+{
+  "media_type": "image/png",
+  "image_base64": "iVBORw0KGgo..."
+}
+```
+
+- `media_type`: exactly `image/png` or `image/jpeg`.
+- `image_base64`: strict base64 whose decoded signature matches `media_type`.
+- Maximum decoded image size: 8 MiB.
+- The configured `OPENAI_MODEL` receives one high-detail image input.
+
+Success is `200 OK`:
+
+```json
+{
+  "text": "Exact visible text from the screenshot.",
+  "provider": "openai",
+  "processing_location": "cloud",
+  "model": "gpt-5.6"
+}
+```
+
+Text is non-empty and capped at the existing 12,000-character `selected_text`
+limit. The client keeps it as reviewed source content and keeps the optional
+4,000-character `user_note` independent, then saves through `POST /v1/captures`
+with `source_type: "screenshot"`. Apple Vision is a macOS-local implementation
+of the same user-facing extraction step and does not call this endpoint.
+
 ### `GET /v1/captures?limit=50&offset=0`
 
 - Success: `200 OK`
@@ -337,7 +377,11 @@ Initial error codes:
 | 404 | `capture_not_found` | No Capture exists for the ID. |
 | 409 | `capture_already_processing` | Duplicate enrichment is in progress. |
 | 422 | `validation_error` | Request does not satisfy the contract. |
-| 503 | `openai_not_configured` | Enrichment cannot start without a key/model. |
+| 502 | `ocr_provider_unavailable` | GPT screenshot extraction failed safely. |
+| 502 | `ocr_refused` | GPT refused the screenshot request. |
+| 502 | `invalid_ocr_output` | GPT returned no usable screenshot text. |
+| 502 | `ocr_text_too_long` | Extracted text exceeds the selected-source contract. |
+| 503 | `openai_not_configured` | Enrichment or GPT screenshot extraction cannot start without a key/model. |
 | 500 | `internal_error` | Unexpected backend failure. |
 
 ## CORS
@@ -351,5 +395,6 @@ paths, queries, and fragments; allowed methods are limited to `GET` and `POST`.
 ## Official OpenAI references
 
 - [Responses API text generation](https://developers.openai.com/api/docs/guides/text?api-mode=responses)
+- [Images and vision](https://developers.openai.com/api/docs/guides/images-vision)
 - [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)
 - [Vector embeddings](https://developers.openai.com/api/docs/guides/embeddings)

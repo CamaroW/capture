@@ -18,6 +18,18 @@ struct MenuBarContentView: View {
         }
         .keyboardShortcut("n")
 
+        Button("Capture Screenshot Note", systemImage: "viewfinder") {
+            Task { @MainActor in
+                await Task.yield()
+                let prepared = store.prepareScreenshotCapture()
+                if prepared || store.quickCaptureError != nil {
+                    openWindow(id: RecallWindowID.quickCapture)
+                    activateApplication()
+                }
+            }
+        }
+        .keyboardShortcut("s")
+
         Button("Search", systemImage: "magnifyingglass") {
             openMainWindow()
             DispatchQueue.main.async {

@@ -15,6 +15,8 @@ Chrome extension ─┐
 macOS application ┘                              ├─ SQLite / FTS5
                                                   ├─ OpenAI Responses API
                                                   └─ OpenAI Embeddings API
+macOS screenshot ── explicit choice ──────────────┬─ GPT OCR via backend
+                                                  └─ Apple Vision on device
 ```
 
 The backend is the only component that persists Captures, calls OpenAI, builds
@@ -25,6 +27,15 @@ After the baseline workflow is stable, an optional Apple on-device enrichment
 provider may run inside the macOS app and return the same structured enrichment
 payload to the backend. This is a gated demonstration path documented in
 decision D-008, not part of the P0 critical path.
+
+Decision D-027 adds a narrower, explicit screenshot-to-note path after the
+baseline became stable. Screenshot content is held by the macOS draft and sent
+in the one GPT request when that extractor is selected. Apple Vision processes
+the same draft entirely on device. Both paths produce reviewed source text that
+enters the existing Capture API and storage/retrieval pipeline while the user's
+optional personal note stays independent; neither creates an image store or a
+second notes database. The macOS system selection command briefly uses a random
+OS temporary PNG and removes it after the normal selection flow.
 
 ## Ownership
 
@@ -140,6 +151,8 @@ No P1 or P2 feature begins before the three product-plan vertical slices work.
 - External vector databases
 - Redis, Celery, or a durable distributed queue
 - WebSockets
-- OCR, image understanding, or full-page offline snapshots
+- General OCR, persistent image memories, image/chart understanding, or
+  full-page offline snapshots. D-027 is the bounded text-only screenshot
+  exception; it does not add an image store.
 - Multi-agent orchestration
 - Production App Store packaging and notarization

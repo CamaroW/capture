@@ -19,6 +19,31 @@ python_is_supported() {
     >/dev/null 2>&1
 }
 
+dependencies_are_current() {
+  (
+    cd "${BACKEND_ROOT}"
+    "${VENV_PYTHON}" -m pip install \
+      --dry-run \
+      --quiet \
+      --no-index \
+      --no-build-isolation \
+      --report - \
+      -r requirements.txt 2>/dev/null
+  ) | "${VENV_PYTHON}" -c '
+import json
+import sys
+
+report = json.load(sys.stdin)
+planned = report.get("install", [])
+only_local_editable = all(
+    item.get("is_direct")
+    and item.get("download_info", {}).get("dir_info", {}).get("editable") is True
+    for item in planned
+)
+raise SystemExit(0 if only_local_editable else 1)
+'
+}
+
 if [[ ! -x "${VENV_PYTHON}" ]]; then
   command -v "${BOOTSTRAP_PYTHON}" >/dev/null 2>&1 \
     || fail "Python 3.10 or later was not found. Set PYTHON_BIN to a compatible interpreter."
@@ -33,7 +58,8 @@ python_is_supported "${VENV_PYTHON}" \
   || fail "The existing backend virtual environment uses Python older than 3.10. Remove services/backend/.venv and rerun."
 
 if ! "${VENV_PYTHON}" -c \
-  'import fastapi, openai, pydantic_settings, pytest, uvicorn' >/dev/null 2>&1; then
+  'import fastapi, openai, pydantic_settings, pytest, uvicorn' >/dev/null 2>&1 \
+  || ! dependencies_are_current; then
   printf 'Installing backend dependencies\n'
   (
     cd "${BACKEND_ROOT}"
@@ -44,6 +70,8 @@ fi
 
 "${VENV_PYTHON}" -m pip check >/dev/null \
   || fail "The backend virtual environment has incompatible dependencies."
+dependencies_are_current \
+  || fail "The backend virtual environment does not satisfy requirements.txt."
 
 SETTINGS="$({
   cd "${BACKEND_ROOT}"

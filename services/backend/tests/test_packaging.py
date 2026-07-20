@@ -72,7 +72,7 @@ def test_release_wheel_loads_packaged_enrichment_schema(tmp_path: Path) -> None:
                 "schema = enrichment_schema(); "
                 "assert schema['type'] == 'object'; "
                 "assert 'search_aliases' in schema['required']; "
-                "assert [item.version for item in discover_migrations()] == [1, 2]"
+                "assert [item.version for item in discover_migrations()] == [1, 2, 3]"
             ),
         ],
         cwd=tmp_path,

@@ -23,16 +23,21 @@ struct CaptureListView: View {
                     BackendConnectionPill(state: store.connectionState)
                 }
                 Spacer()
-                Button {
-                    _ = store.prepareClipboardCapture()
-                    NotificationCenter.default.post(name: .openQuickCapture, object: nil)
+                Menu {
+                    Button("Capture Clipboard", systemImage: "doc.on.clipboard") {
+                        _ = store.prepareClipboardCapture()
+                        NotificationCenter.default.post(name: .openQuickCapture, object: nil)
+                    }
+                    Button("Capture Screenshot Note", systemImage: "viewfinder") {
+                        beginScreenshotCapture()
+                    }
                 } label: {
                     Image(systemName: "plus")
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                .help("Capture Clipboard")
-                .accessibilityLabel("Capture Clipboard")
+                .help("New Capture")
+                .accessibilityLabel("New Capture")
 
                 Button {
                     Task { await store.refresh() }
@@ -118,9 +123,14 @@ struct CaptureListView: View {
                          : "Try a different phrase or clear the search.")
                 } actions: {
                     if store.query.nonEmptyTrimmed == nil {
-                        Button("Capture Clipboard") {
-                            _ = store.prepareClipboardCapture()
-                            NotificationCenter.default.post(name: .openQuickCapture, object: nil)
+                        HStack {
+                            Button("Capture Clipboard") {
+                                _ = store.prepareClipboardCapture()
+                                NotificationCenter.default.post(name: .openQuickCapture, object: nil)
+                            }
+                            Button("Screenshot Note") {
+                                beginScreenshotCapture()
+                            }
                         }
                         .buttonStyle(.borderedProminent)
                     }
@@ -133,6 +143,14 @@ struct CaptureListView: View {
                 .listStyle(.sidebar)
                 .scrollContentBackground(.hidden)
             }
+        }
+    }
+
+    private func beginScreenshotCapture() {
+        Task { @MainActor in
+            await Task.yield()
+            guard store.prepareScreenshotCapture() else { return }
+            NotificationCenter.default.post(name: .openQuickCapture, object: nil)
         }
     }
 }

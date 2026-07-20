@@ -91,6 +91,18 @@ actor MockRecallAPIClient: RecallAPIClient {
     func enrich(id: String) async throws -> Capture {
         try await getCapture(id: id)
     }
+
+    func extractScreenshotText(_ request: ScreenshotOCRRequest) async throws -> ScreenshotOCRResponse {
+        guard Data(base64Encoded: request.imageBase64) != nil else {
+            throw RecallAPIError.decoding("Invalid screenshot data")
+        }
+        return ScreenshotOCRResponse(
+            text: "Text extracted from the screenshot.",
+            provider: .openai,
+            processingLocation: .cloud,
+            model: "gpt-5.6"
+        )
+    }
 }
 
 extension Capture {

@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 CaptureStatus = Literal["captured", "processing", "ready", "error"]
-SourceType = Literal["web", "clipboard"]
+SourceType = Literal["web", "clipboard", "screenshot"]
 
 
 class StorageModel(BaseModel):

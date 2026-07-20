@@ -5,8 +5,8 @@ loopback backend at `http://127.0.0.1:8765`; normal runs do not use an in-proces
 database or mock API client.
 
 The macOS client, hardened backend, and Chrome extension now live in the same
-integration tree. The current target builds and passes all 22 contract,
-networking, lifecycle, validation, idempotency, and store tests.
+integration tree. The current target builds and passes all 43 contract,
+networking, Vision, lifecycle, validation, idempotency, and store tests.
 
 ## Requirements
 
@@ -117,6 +117,15 @@ Run the build and tests again after regeneration.
   responses.
 - Capture non-empty clipboard text, optional notes, and best-effort source-app
   metadata through `POST /v1/captures`.
+- Select a screenshot region, preview it, and explicitly extract visible text
+  as reviewed source content. GPT/cloud is the default; Apple Vision/on-device
+  uses the same UI and subsequent Capture pipeline without calling the backend
+  OCR route. The optional personal note remains an independent field.
+- Keep screenshot bytes only for the active draft. Cancel, window close, or
+  successful save clears the in-memory preview and invalidates any late OCR
+  result; SQLite stores the extracted source text and optional note, not the
+  image. The system screenshot command removes its random temporary PNG after
+  the normal selection flow.
 - Keep source, surrounding context, user note, and generated interpretation
   visually separate.
 - Show `processing`, `ready`, `error`, and captured lifecycle states; poll
@@ -142,7 +151,7 @@ Run the build and tests again after regeneration.
   selected-text/no-selection Captures have been verified end to end against the
   macOS client. Keep the credential and machine-specific extension origin only
   in the untracked root `.env`.
-- Clipboard source-application detection is best effort. The app does not read
+- Clipboard and screenshot source-application detection is best effort. The app does not read
   active window titles or Accessibility selections and has no global shortcut.
 - Persistence belongs to the backend SQLite database. The app has no offline
   write queue.
@@ -152,8 +161,8 @@ Run the build and tests again after regeneration.
 - App sandboxing, notarization, and bundling the Python service are outside the
   current P0 Build Week scope.
 
-The current command-line suite executes 27 contract, networking, lifecycle,
-validation, retry, polling, and store tests.
+The current command-line suite executes 43 contract, networking, production
+Vision, lifecycle, validation, retry, polling, and store tests.
 
 ## Manual test matrix
 
@@ -166,6 +175,9 @@ after rerunning them on the current integrated tree.
 | Healthy launch | Start the backend, then launch Recall. | Connection shows **Connected** and live records load. `AI not configured` is acceptable without a key. |
 | Offline recovery | Stop the backend, launch Recall, restart the backend, then choose **Try Again** or **Refresh**. | Recall shows an offline state, reconnects, and reloads the library without losing persisted records. |
 | Clipboard capture | Copy non-empty text in TextEdit, open **Capture Clipboard**, add a note, and save. | The exact text and note are saved separately; the record appears immediately and progresses to a safe terminal state. |
+| GPT screenshot note | Choose **Capture Screenshot Note**, select a text region, keep **GPT · Cloud**, and choose **Extract source text**. | A preview appears before upload, the UI states the cloud boundary, extracted text fills only the source field, your optional personal note stays separate, and only text is saved. |
+| Local screenshot note | Repeat with **Apple Vision · On device**, disconnect the network after the backend is already running, and extract. | Text extraction succeeds on the Mac, the UI confirms local processing, and no `/v1/ocr` request is made. Saving still uses the localhost Capture API. |
+| Screenshot cancellation/limits | Cancel region selection, close the draft while extraction is running, try a non-text image, and select enough text to exceed 12,000 characters. | Cancellation creates no draft; close clears the image and ignores a late result; no-text and oversized results remain unsaved with actionable errors and no silent truncation. |
 | Empty clipboard | Clear the clipboard or copy non-text-only content, then open capture. | Recall warns locally and sends no create request. |
 | Capture limits | Try clipboard text at 12,000/12,001 characters and notes at 4,000/4,001. | Values at the caps can be submitted; oversized drafts stay visible and show validation without submission. |
 | Idempotent retry | Make one create attempt fail after preparing a draft, restore service, and retry the same draft. | The retry uses the same client ID and cannot create two records for that one draft. |
@@ -175,7 +187,7 @@ after rerunning them on the current integrated tree.
 | Search limits and failure | Try 512/513-character queries, a control character, a backend error, and a genuine search-route `404`. | Valid input reaches the backend; invalid input is blocked locally; only `404` enables the visible local fallback. |
 | API-provided web record | POST `contracts/examples/capture-request.json`, refresh, and open the record. | URL, title, selection, context, note, and truncation state appear in separate sections. |
 | Real Chrome flow | Load the extension unpacked, configure its exact origin, save a web selection, and refresh Recall. | The Chrome-created card appears without a database edit; repeat once with the backend stopped to verify the popup error. |
-| Menu-bar entry | Exercise **Open Recall**, **Capture Clipboard**, **Search**, **Check Connection**, and **Quit Recall**. | Each item performs its intended action without unexpected duplicate windows. |
+| Menu-bar entry | Exercise **Open Recall**, **Capture Clipboard**, **Capture Screenshot Note**, **Search**, **Check Connection**, and **Quit Recall**. | Each item performs its intended action without unexpected duplicate windows. |
 
 For the short walkthrough, use
 [`docs/demo-script.md`](../../docs/demo-script.md).

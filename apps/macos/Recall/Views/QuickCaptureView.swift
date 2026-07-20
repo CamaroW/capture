@@ -1,9 +1,11 @@
+import AppKit
 import SwiftUI
 
 struct QuickCaptureView: View {
     @EnvironmentObject private var store: RecallStore
     @Environment(\.dismissWindow) private var dismissWindow
     @FocusState private var noteIsFocused: Bool
+    @State private var screenshotExtractionTask: Task<Void, Never>?
 
     var body: some View {
         Group {
@@ -16,10 +18,15 @@ struct QuickCaptureView: View {
         .frame(width: 500)
         .background(.regularMaterial)
         .onAppear {
-            noteIsFocused = true
+            noteIsFocused = store.quickCaptureDraft?.kind == .clipboard
         }
         .onExitCommand {
             cancel()
+        }
+        .onDisappear {
+            screenshotExtractionTask?.cancel()
+            screenshotExtractionTask = nil
+            store.dismissQuickCapturePresentation()
         }
     }
 
@@ -27,7 +34,7 @@ struct QuickCaptureView: View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Capture Clipboard")
+                    Text(draft.kind == .screenshot ? "Capture Screenshot Note" : "Capture Clipboard")
                         .font(.title2.weight(.bold))
                     Label(draft.sourceApplication ?? "Clipboard", systemImage: "app.dashed")
                         .font(.callout)
@@ -39,9 +46,13 @@ struct QuickCaptureView: View {
                     .foregroundStyle(Color.accentColor)
             }
 
+            if draft.kind == .screenshot {
+                screenshotExtractionSection
+            }
+
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text("SELECTION")
+                    Text(draft.kind == .screenshot ? "EXTRACTED SOURCE TEXT" : "SELECTION")
                         .font(.caption.weight(.bold))
                         .tracking(0.7)
                         .foregroundStyle(.secondary)
@@ -51,11 +62,17 @@ struct QuickCaptureView: View {
                         .foregroundStyle(draft.characterCount > RecallStore.maximumSelectedTextLength ? .red : .secondary)
                 }
                 ScrollView {
-                    Text(draft.selectedText)
+                    Text(
+                        draft.selectedText.nonEmptyTrimmed
+                            ?? "Choose an extractor, then extract the screenshot's source text."
+                    )
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .font(.body)
                         .lineSpacing(3)
                         .textSelection(.enabled)
+                        .foregroundStyle(
+                            draft.selectedText.nonEmptyTrimmed == nil ? .secondary : .primary
+                        )
                 }
                 .frame(height: 132)
                 .padding(12)
@@ -87,7 +104,10 @@ struct QuickCaptureView: View {
                 .lineLimit(2...4)
                 .textFieldStyle(.roundedBorder)
                 .focused($noteIsFocused)
-                .disabled(store.isQuickCaptureRetryLocked)
+                .disabled(
+                    store.isQuickCaptureRetryLocked
+                        || (draft.kind == .screenshot && draft.selectedText.isEmpty)
+                )
                 .onSubmit {
                     save()
                 }
@@ -106,7 +126,11 @@ struct QuickCaptureView: View {
             }
 
             HStack {
-                Text("Your source is saved before AI processing begins.")
+                Text(
+                    draft.kind == .screenshot
+                        ? "Recall saves only the extracted source text and your optional note; closing clears the temporary image."
+                        : "Your source is saved before AI processing begins."
+                )
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -129,6 +153,8 @@ struct QuickCaptureView: View {
                 .keyboardShortcut(.defaultAction)
                 .disabled(
                     store.isSubmittingCapture
+                        || store.isExtractingScreenshot
+                        || draft.characterCount == 0
                         || draft.characterCount > RecallStore.maximumSelectedTextLength
                         || draft.noteCharacterCount > RecallStore.maximumUserNoteLength
                 )
@@ -137,12 +163,83 @@ struct QuickCaptureView: View {
         .padding(24)
     }
 
+    private var screenshotExtractionSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let data = store.screenshotPreviewData,
+               let image = NSImage(data: data) {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: 150)
+                    .background(.black.opacity(0.06), in: RoundedRectangle(cornerRadius: 11))
+                    .clipShape(RoundedRectangle(cornerRadius: 11))
+                    .accessibilityLabel("Selected screenshot preview")
+            }
+
+            Picker("Text extractor", selection: $store.screenshotExtractionMode) {
+                ForEach(ScreenshotExtractionMode.allCases) { mode in
+                    Text(mode.label).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .disabled(store.isExtractingScreenshot || store.isQuickCaptureRetryLocked)
+
+            HStack {
+                Label(
+                    store.screenshotExtractionMode == .gpt
+                        ? "Image is sent to GPT for this extraction only"
+                        : "Image stays on this Mac",
+                    systemImage: store.screenshotExtractionMode == .gpt
+                        ? "cloud"
+                        : "lock.shield"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    screenshotExtractionTask?.cancel()
+                    screenshotExtractionTask = Task { @MainActor in
+                        defer { screenshotExtractionTask = nil }
+                        if await store.extractScreenshotText() {
+                            noteIsFocused = true
+                        }
+                    }
+                } label: {
+                    if store.isExtractingScreenshot {
+                        ProgressView()
+                            .controlSize(.small)
+                            .frame(minWidth: 150)
+                    } else {
+                        Text(
+                            store.screenshotExtractionSummary == nil
+                                ? "Extract source text"
+                                : "Re-extract source text"
+                        )
+                        .frame(minWidth: 150)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(store.isExtractingScreenshot || store.isQuickCaptureRetryLocked)
+            }
+
+            if let summary = store.screenshotExtractionSummary {
+                Label(summary, systemImage: "checkmark.circle.fill")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.green)
+            }
+        }
+    }
+
     private var unavailableState: some View {
         VStack(spacing: 16) {
-            Image(systemName: "doc.on.clipboard")
+            Image(
+                systemName: store.quickCaptureError == nil
+                    ? "doc.on.clipboard"
+                    : "exclamationmark.triangle"
+            )
                 .font(.system(size: 40))
                 .foregroundStyle(.secondary)
-            Text("Nothing to capture")
+            Text(store.quickCaptureError == nil ? "Nothing to capture" : "Capture unavailable")
                 .font(.title2.weight(.bold))
             Text(store.quickCaptureError ?? "Copy some text in any app, then choose Capture Clipboard again.")
                 .multilineTextAlignment(.center)
@@ -168,8 +265,12 @@ struct QuickCaptureView: View {
     }
 
     private func save() {
+        guard let clientCaptureID = store.quickCaptureDraft?.clientCaptureID else { return }
         Task {
             guard await store.submitQuickCapture() else { return }
+            guard store.quickCaptureDraft?.clientCaptureID == clientCaptureID else {
+                return
+            }
             dismissWindow(id: RecallWindowID.quickCapture)
             store.clearQuickCapture()
         }
@@ -177,6 +278,8 @@ struct QuickCaptureView: View {
 
     private func cancel() {
         guard !store.isSubmittingCapture else { return }
+        screenshotExtractionTask?.cancel()
+        screenshotExtractionTask = nil
         dismissWindow(id: RecallWindowID.quickCapture)
         store.clearQuickCapture()
     }

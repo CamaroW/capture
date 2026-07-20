@@ -8,8 +8,8 @@ from app.database import MIGRATIONS_DIRECTORY, apply_migrations, database_connec
 def test_migrations_are_idempotent_and_complete(tmp_path: Path) -> None:
     database_path = tmp_path / "recall.db"
 
-    assert apply_migrations(database_path) == 2
-    assert apply_migrations(database_path) == 2
+    assert apply_migrations(database_path) == 3
+    assert apply_migrations(database_path) == 3
 
     with database_connection(database_path) as connection:
         tables = {
@@ -61,6 +61,7 @@ def test_migrations_are_idempotent_and_complete(tmp_path: Path) -> None:
     assert [(row["version"], row["name"]) for row in applied] == [
         (1, "initial_captures"),
         (2, "fts5_keyword_search"),
+        (3, "screenshot_source_type"),
     ]
     assert triggers == {
         "captures_fts_after_insert",
@@ -108,7 +109,7 @@ def test_fts_migration_backfills_existing_capture(tmp_path: Path) -> None:
         )
         connection.commit()
 
-    assert apply_migrations(database_path) == 2
+    assert apply_migrations(database_path) == 3
 
     with database_connection(database_path) as connection:
         row = connection.execute(
@@ -118,6 +119,38 @@ def test_fts_migration_backfills_existing_capture(tmp_path: Path) -> None:
             WHERE captures_fts MATCH '"legacy"'
             """
         ).fetchone()
+        source_type = connection.execute(
+            "SELECT source_type FROM captures WHERE id = 'legacy-capture'"
+        ).fetchone()
+        connection.execute(
+            """
+            INSERT INTO captures (
+                id, created_at, updated_at, captured_at, status,
+                source_type, selected_text, user_note
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "screenshot-capture",
+                "2026-07-20T06:00:00.000000Z",
+                "2026-07-20T06:00:00.000000Z",
+                "2026-07-20T06:00:00-07:00",
+                "captured",
+                "screenshot",
+                "Screenshot OCR source",
+                "Screenshot OCR note",
+            ),
+        )
+        screenshot_fts = connection.execute(
+            """
+            SELECT capture_id FROM captures_fts
+            WHERE captures_fts MATCH '"Screenshot"'
+            """
+        ).fetchone()
+        connection.commit()
 
     assert row is not None
     assert row["capture_id"] == "legacy-capture"
+    assert source_type is not None
+    assert source_type["source_type"] == "clipboard"
+    assert screenshot_fts is not None
+    assert screenshot_fts["capture_id"] == "screenshot-capture"

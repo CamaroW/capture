@@ -39,6 +39,8 @@ addition made beyond [`product-plan.md`](product-plan.md).
 | D-023 | Restore runnable integrated main | Addition | Accepted; deterministic verification complete |
 | D-024 | Bounded literal-substring retrieval fallback | Clarification | Accepted |
 | D-025 | Keyboard-first Chrome capture polish | Addition | Accepted by user direction |
+| D-026 | Deterministic macOS command-line test runner | Reliability safeguard | Accepted |
+| D-027 | Transient screenshot OCR into the existing Capture pipeline | Addition | Implemented and live-verified in PR #5 |
 
 ## D-001 — Localhost monorepo architecture
 
@@ -564,6 +566,40 @@ This is a test-infrastructure fallback, not a substitute for manual app checks
 or a change to the product runtime. The conventional Xcode `Command-U` and
 `xcodebuild test` paths remain documented for environments where the hosted
 runner completes normally.
+
+## D-027 — Transient screenshot OCR into the existing Capture pipeline
+
+- Classification: Addition approved by explicit user direction
+- Status: Implemented and live-verified; B-012 and B-013 were resolved on the
+  integration Mac and the reviewed change is recorded in PR #5
+- Product impact: Adds an interactive screenshot-to-note path with GPT first and
+  Apple Vision as an on-device alternative
+- Schedule impact: Bounded exception to the outline's deferred OCR scope
+
+The product plan defers general OCR, image memories, and chart understanding.
+This user-directed addition is intentionally narrower: the macOS app captures a
+selected screen region, displays it temporarily, and extracts visible text only
+after an explicit user action. The image is not written to Recall's database and
+its in-memory preview is cleared when the capture draft is dismissed. The macOS
+selection command uses a random OS temporary PNG that is removed after the
+normal selection flow.
+
+GPT is the default extractor through a provider-neutral localhost API boundary.
+Apple Vision is the selectable local extractor for the demo, and its result
+enters the exact same Capture pipeline. The UI must label cloud versus on-device
+processing before extraction. Extracted text remains source content; an optional
+personal user note remains a separate field. Both are saved through existing
+SQLite, enrichment, FTS, and semantic retrieval; no second notes store or
+image-attachment schema is introduced.
+
+Screenshot-derived Captures use the explicit `screenshot` source type rather
+than masquerading as clipboard input. Migration 003 transactionally preserves
+existing rows while rebuilding the SQLite source constraint and synchronized
+FTS table. No image column is added.
+
+This decision does not authorize background screen monitoring, automatic OCR,
+full screenshot persistence, image embeddings, chart understanding, or a new
+navigation system. Those remain deferred.
 
 ## Pending decisions
 
