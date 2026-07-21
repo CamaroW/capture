@@ -55,8 +55,9 @@ not approval from a particular historical developer role.
    keeps the action popup usable on shorter displays. Existing context is
    collapsed and display-bounded in macOS without altering stored data. The real
    Chrome toolbar, standalone production-script inline harness, rebuilt macOS
-   app, and source review are complete; finish CI and merge evidence.
-   Deterministic suites pass 68/68 for Chrome and 48/48 for macOS.
+   app, and source review are complete. PR #9 passes all required checks; finish
+   final review and merge evidence. Deterministic suites pass 68/68 for Chrome
+   and 48/48 for macOS.
 3. **Native global capture shortcut and menu-bar availability — next.** Add a
    configurable global screenshot shortcut that reuses the existing region
    selection and Quick Capture flow, and keep it available from the menu-bar app

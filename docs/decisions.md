@@ -692,8 +692,8 @@ the pull-request checks and merged the feature into `main` at `71ec387`.
 
 - Classification: Reliability and privacy safeguard approved by user direction
 - Status: Implemented and UI-verified at the boundaries recorded below on
-  `codex/inline-context-ui-fixes`; 68 extension and 48 macOS tests pass, with CI
-  and merge evidence still pending
+  `codex/inline-context-ui-fixes`; 68 extension and 48 macOS tests pass, and PR
+  #9 passed all required checks; final review and merge remain pending
 - Product impact: Prevents unrelated page regions from entering new Chrome
   Captures and prevents oversized stored context from stalling the native detail
   view

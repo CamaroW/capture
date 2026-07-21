@@ -70,7 +70,7 @@ Update protocol:
 | 10 | Final freeze and submission | Pending | Not started |
 | Addition | Screenshot-to-notes OCR | Complete and verified | PR #5 supersedes draft PR #4; 214 backend, 44/44 stress, 16 extension, and 43 macOS tests pass; live GPT, Apple Vision, permission, cancellation, and dismissal flows pass |
 | Addition | Opt-in inline browser capture | Complete, real-Chrome verified, and merged | PR #8 merged D-029 at `71ec387`; 68/68 extension tests and enable/save/retry/revoke/BFCache/toolbar-fallback evidence passed before merge |
-| Addition | Browser context and detail-view hardening | Implementation and bounded UI review complete / CI pending | D-030 disables unsafe Chrome context, bounds native display, fixes inline count/scroll, and compacts the popup; 68/68 extension and 48/48 macOS tests pass |
+| Addition | Browser context and detail-view hardening | Implementation, bounded UI review, and CI complete / merge pending | D-030 disables unsafe Chrome context, bounds native display, fixes inline count/scroll, and compacts the popup; PR #9 passes all required checks |
 
 The D-023 integration closes B-010, the macOS slice closes B-006, and real
 provider plus unpacked-Chrome evidence closes B-007, B-008, and B-009. B-011 is
@@ -177,7 +177,8 @@ verified under D-029; PR #8 merged the change at `71ec387`
 
 Status: `[~]` D-030 implementation, automated verification, the bounded UI
 verification recorded below, and source review complete on
-`codex/inline-context-ui-fixes`; CI and merge evidence remain pending
+`codex/inline-context-ui-fixes`; PR #9 passes all required checks, while final
+review and merge evidence remain pending
 
 - [x] Record the real Gemini failure without storing its content in this log:
   selected text was 1,530 characters, context was 19,144 characters, and that
@@ -210,7 +211,9 @@ verification recorded below, and source review complete on
   and the rebuilt native app kept the 19,144-character context collapsed before
   rendering only its bounded 60-line preview. The standalone harness uses a
   mocked runtime and open Shadow DOM, so it is not injection or CSP evidence.
-- [ ] Complete CI and merge evidence.
+- [x] Complete CI evidence. PR #9 passes Backend tests, Backend stress, Chrome
+  extension, macOS, and the aggregate Required checks job.
+- [ ] Complete final review and merge evidence.
 
 ## Scope, schedule, and collaboration guardrails
 
