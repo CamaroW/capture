@@ -252,6 +252,16 @@ is never logged, persisted, or sent to the backend. The current host suite passe
 merge; rich text, image, Finder-file, and race cases remain release-regression
 coverage rather than an open merge gate.
 
+D-036 begins rich-source support at the conservative intake boundary rather than
+adding a rich editor prematurely. Explicit Clipboard Capture now uses a bounded
+resolver: plain text owns the content, while content-equivalent HTML or RTF may
+replace an existing whitespace separator with a paragraph or line boundary.
+Mismatched rich data cannot remove Markdown/TeX delimiters, and no markup is
+rendered, persisted, or sent. Gemini's live clipboard payload verifies that the
+resolver can preserve inline/display TeX and recover safe block boundaries.
+Native Accessibility selection remains unchanged and limited to what the source
+app exposes.
+
 Final regression also passes 215 backend tests, 44/44 stress scenarios, and
 68/68 Chrome-extension tests.
 

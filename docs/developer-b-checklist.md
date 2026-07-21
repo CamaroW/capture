@@ -6,12 +6,12 @@ Project: Recall
 
 Last updated: 2026-07-21
 
-Current phase: Native Accessibility selection implemented; real-device
-acceptance and PR review pending
+Current phase: Structured-text capture fidelity implemented; real-source
+acceptance pending
 
-Implementation branch: `codex/native-accessibility-selection`
+Implementation branch: `codex/text-capture-fidelity`
 
-Branch base: `42f565a` (PR #12 merge commit)
+Branch base: `e6206e0` (PR #13 merge commit)
 
 Canonical target: `main`
 
@@ -39,6 +39,13 @@ migration. The host macOS suite passes 108/108, and the user accepted the
 primary AX path. WeChat then exposed an expected unsupported-control gap;
 D-035 is implemented with a 149/149 host suite, and B-016 closed after final
 real-device acceptance on 2026-07-21.
+
+D-036 now adds one conservative intake layer to explicit Clipboard Capture. It
+keeps plain characters authoritative and restores only richer line boundaries
+from bounded, content-equivalent HTML/RTF. The real Gemini clipboard payload
+restores verified block boundaries from an intentionally flattened plain string
+while retaining inline and display TeX. Selection Capture remains unchanged, and
+the resulting host suite passes 176/176.
 
 Last baseline cross-check: 2026-07-18 against all sections of
 `docs/product-plan.md`
@@ -92,6 +99,7 @@ Update protocol:
 | Safeguard | Chrome action popup sizing | Complete and real-Chrome verified | D-033 uses a 344 × 510 root without viewport-height feedback; 68/68 tests and selected/metadata layouts pass |
 | Addition | Native Accessibility selection | Implemented; primary path accepted | D-034 adds explicit `Option+Shift+Command+S`, fail-closed AX reading, anchored review, safe v1 shortcut migration, and 108/108 macOS tests; user acceptance passed on 2026-07-21 |
 | Addition | Clipboard selection compatibility | Complete and real-device accepted | D-035 adds an off-by-default transactional synthetic-Copy fallback with exact-control and application-scoped tickets; 149/149 host tests and B-016 user acceptance pass |
+| Addition | Structured-text capture fidelity | Implemented; live payload verified | D-036 adds a bounded plain/HTML/RTF resolver to explicit Clipboard Capture; the real Gemini payload restores verified boundaries from flattened plain text while retaining TeX |
 
 The D-023 integration closes B-010, the macOS slice closes B-006, and real
 provider plus unpacked-Chrome evidence closes B-007, B-008, and B-009. B-011 is
@@ -382,6 +390,35 @@ acceptance are complete; the user authorized merge on 2026-07-21
 - [x] Complete automated service/store/privacy tests and pass the expanded
   149/149 host suite.
 - [x] Pass B-016 in WeChat and obtain explicit merge authorization.
+
+## Active addition — structured-text capture fidelity
+
+Status: `[x]` D-036 implementation, its 176/176 host suite, and live Gemini
+clipboard payload verification are complete
+
+- [x] Confirm that the API contract, JSON transport, SQLite `TEXT`, and current
+  native views already retain newline characters; make no schema or migration
+  change for this bounded slice.
+- [x] Add one bounded resolver for plain text plus inert HTML/RTF clipboard
+  representations to explicit Clipboard Capture.
+- [x] Keep plain content authoritative. Project richer line boundaries only
+  when the structured candidate has identical ordered non-whitespace content;
+  otherwise preserve the original plain string exactly, including TeX or
+  Markdown delimiters such as `$e$`.
+- [x] Keep HTML/RTF markup transient and local. Do not render it, persist it,
+  log it, or send it before the user saves the resolved text.
+- [x] Reject whitespace-only plain text, rich-only payloads, cross-item pairing,
+  and explicit-capture reads whose pasteboard change count moves mid-snapshot.
+- [x] Resolve multiple text items independently and join them with macOS's
+  newline semantics; fall back to system plain text when bounded item/type
+  inspection is exceeded.
+- [x] Pass host macOS tests covering HTML/RTF line restoration,
+  whitespace-position safety, mismatch fallback, size bounds, and explicit
+  Clipboard Capture.
+- [x] Verify the user's Gemini clipboard payload. Its HTML exposes semantic
+  `data-math`; flattening the plain string to zero newlines and resolving it
+  restores 46 verified block boundaries while preserving inline/display TeX
+  and identical ordered non-whitespace content.
 
 ## Active reliability correction — stable Screen Recording identity
 
@@ -1672,6 +1709,21 @@ release candidates should repeat the interaction check.
 
 Use IDs `E-###`. Record the original symptom and the resolution. Do not erase
 resolved errors.
+
+## E-060 — UTF-16 regression exposed an ambiguous no-BOM byte order
+
+- Date: 2026-07-21
+- Status: Resolved 2026-07-21
+- Symptom: The first 171-test D-036 run passed 170 tests but decoded a synthetic
+  `public.utf16-plain-text` payload without a byte-order mark as unrelated CJK
+  characters.
+- Cause: Foundation's generic UTF-16 decoder accepted the no-BOM bytes with the
+  wrong order before the explicit little-endian decoder was tried.
+- Resolution: Honor an explicit big- or little-endian BOM first and otherwise
+  use the native little-endian order of every supported macOS target. The same
+  171-test host suite now passes completely.
+- Project impact: Correct plain-text decoding for a legacy pasteboard alias;
+  no API, storage, or rendering change.
 
 ## E-059 — Chrome action popup collapsed to a title-height strip
 

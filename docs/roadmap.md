@@ -42,6 +42,14 @@ split; they are no longer assignment gates.
   compatibility mode for apps such as WeChat. It supports exact-control tickets
   and application-scoped tickets for custom-drawn apps. Its current host suite
   passes 149/149; B-016 user acceptance passed on 2026-07-21.
+- D-036 starts the next capture-correctness slice. Plain text remains
+  authoritative, while bounded HTML/RTF clipboard representations may restore
+  line structure only when their ordered non-whitespace content is identical;
+  recovered boundaries are projected onto the original plain characters.
+  The existing text contract and database remain unchanged. The live Gemini
+  clipboard payload restores verified HTML block boundaries from zero-newline
+  plain text while retaining its TeX. The host suite passes 176/176, and
+  Selection Capture remains at D-034/D-035.
 - The macOS app and Chrome extension are separate clients of the loopback
   FastAPI service. The app does not yet package or start that service.
 
@@ -115,16 +123,22 @@ not approval from a particular historical developer role.
    issue in final WeChat testing and authorized merge. Rich clipboard formats,
    password fields, races, and screen-edge cases remain release regression
    coverage.
-5. **App-managed local service lifecycle.** Define how a packaged Recall app
+5. **Structured-text capture fidelity — implemented; real-source acceptance
+   pending.** Preserve plain non-whitespace content and remaining whitespace
+   while recovering useful paragraph and line boundaries from safe, equivalent
+   HTML/RTF clipboard representations in explicit Clipboard Capture. Do not
+   change Selection Capture or storage until a later design proves that source
+   markup is necessary.
+6. **App-managed local service lifecycle.** Define how a packaged Recall app
    starts, monitors, and stops the backend without assuming a repository checkout
    or terminal command. Keep this separate from browser native messaging.
-6. **Image attachments.** Design explicit image persistence, limits, privacy,
+7. **Image attachments.** Design explicit image persistence, limits, privacy,
    deletion, migrations, and detail UI before allowing an imported image to be
    saved as more than OCR-derived text.
-7. **Menu-bar image drop.** After image semantics are decided, add a bounded
+8. **Menu-bar image drop.** After image semantics are decided, add a bounded
    drop target. A click-open drop zone may precede a custom AppKit status item
    that opens when an image is dragged directly over the icon.
-8. **Release readiness.** Finish licensing, screenshots, demo materials,
+9. **Release readiness.** Finish licensing, screenshots, demo materials,
    packaging/notarization decisions, a stable tag, and clean-machine setup proof.
 
 ## Later product polish
