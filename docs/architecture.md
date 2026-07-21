@@ -1,8 +1,9 @@
 # Recall architecture baseline
 
-Status: Accepted for Build Week
+Status: Accepted baseline; current priorities are tracked in
+[`roadmap.md`](roadmap.md)
 
-Last updated: 2026-07-18
+Last updated: 2026-07-20
 
 This document translates the product baseline into system boundaries and
 handoffs. It does not replace [`product-plan.md`](product-plan.md).
@@ -37,9 +38,12 @@ optional personal note stays independent; neither creates an image store or a
 second notes database. The macOS system selection command briefly uses a random
 OS temporary PNG and removes it after the normal selection flow.
 
-## Ownership
+## Component ownership
 
-### Developer A — Capture and experience
+Historical Developer A/B labels are retained in the execution log as provenance,
+but current work is assigned by component rather than person.
+
+### Native capture and experience
 
 Owned paths:
 
@@ -53,12 +57,23 @@ Responsibilities:
 - Capture list, detail, search, and processing/error states
 - Demo interaction and visual consistency
 
-### Developer B — Intelligence and data
+### Browser capture
+
+Owned paths:
+
+- `apps/chrome-extension/`
+
+Responsibilities:
+
+- Chrome page selection, context, and inline interaction
+- Browser permission and content-script boundaries
+- Browser-to-localhost delivery and browser-specific validation
+
+### Memory pipeline
 
 Owned paths:
 
 - `services/backend/`
-- `apps/chrome-extension/`
 - `contracts/`
 
 Responsibilities:
@@ -66,7 +81,6 @@ Responsibilities:
 - FastAPI, SQLite, and API behavior
 - OpenAI Structured Outputs and enrichment failure handling
 - Embeddings, FTS5, and hybrid search
-- Chrome selection/context capture and localhost delivery
 
 ### Shared
 
@@ -74,7 +88,8 @@ Responsibilities:
 - Prompt quality and representative fixtures
 - End-to-end integration, README, tests, demo, and submission materials
 
-Contract changes require both developers to agree before implementation.
+Contract changes require review across every affected component before
+implementation.
 
 ## Core data boundaries
 
@@ -128,9 +143,9 @@ exactly and is documented as a byte-stable construction in
 
 ## Build order
 
-The baseline dependency order remains below. Delivery is currently executing
-Layer 7 before Layer 6 by explicit user direction under D-016; this does not
-remove the Chrome workflow or change ownership.
+The baseline dependency order remains below as implementation history. All P0
+layers are now integrated on `main`; active post-baseline work is ordered in
+[`roadmap.md`](roadmap.md).
 
 1. Contracts and documentation (Layer 0).
 2. Backend configuration and health check.

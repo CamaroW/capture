@@ -42,6 +42,7 @@ addition made beyond [`product-plan.md`](product-plan.md).
 | D-026 | Deterministic macOS command-line test runner | Reliability safeguard | Accepted |
 | D-027 | Transient screenshot OCR into the existing Capture pipeline | Addition | Implemented and live-verified in PR #5 |
 | D-028 | Layered GitHub Actions pull-request checks | Reliability safeguard | Accepted by user direction |
+| D-029 | Opt-in inline browser selected-text capture | Addition | Accepted for implementation; verification pending |
 
 ## D-001 — Localhost monorepo architecture
 
@@ -619,6 +620,40 @@ The workflow grants only read access to repository contents, pins GitHub-owned
 actions to immutable release commits, cancels superseded runs, and never loads
 `.env` or an OpenAI key. Provider behavior, screenshot permissions, and other
 interactive operating-system flows retain their documented manual gates.
+
+## D-029 — Opt-in inline browser selected-text capture
+
+- Classification: Addition approved by explicit user direction
+- Status: Accepted for implementation; the prototype branch has been evaluated,
+  but current-main integration and real unpacked-Chrome verification are pending
+- Product impact: Reduces a selected-web-text Capture to one nearby action, an
+  optional personal note, and an explicit save
+- Schedule impact: Bounded Chrome-extension slice; native capture improvements
+  and browser-region screenshots remain separate
+
+After a user explicitly enables optional HTTP/HTTPS website access, the Chrome
+extension may observe a completed selection locally and show a transient
+**Add to Recall** action beside it. Selecting text alone must not persist, log,
+or transmit source content. The selected source, bounded surrounding context,
+page title, URL, and optional user note enter the existing `POST /v1/captures`
+pipeline only after the user chooses Save.
+
+The inline surface must not change document layout, take focus merely by
+appearing, suppress the page's normal keyboard behavior, interpret page text as
+HTML, or leave controls behind after permission revocation. Toolbar and keyboard
+capture remain supported fallbacks. All browser entry points reuse one validated
+service-worker delivery path, and an ambiguous retry reuses the exact original
+source, note, timestamp, and `client_capture_id`.
+
+This decision changes no backend, database, enrichment, OCR, or retrieval
+contract. It does not include browser-region screenshots, native Accessibility
+capture, passive system-wide selection monitoring, Chrome native messaging, or
+image attachments. The native D-027 flow remains the system screenshot path.
+
+Merge requires deterministic coverage of permission initialization/revocation,
+Unicode limits, rapid activation, error dismissal, stable retry identity, and
+toolbar regression, followed by a real unpacked-Chrome enable/save/macOS-display/
+revoke run on an already-open page.
 
 ## Pending decisions
 

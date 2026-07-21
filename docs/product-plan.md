@@ -1,5 +1,9 @@
 # AI 个人记忆捕获工具：OpenAI Build Week 项目执行计划
 
+> 本文件保留最初的 Build Week 基线与产品原则。当前实现状态和后续顺序见
+> [`roadmap.md`](roadmap.md)，已接受的范围新增与架构决定见
+> [`decisions.md`](decisions.md)。
+
 ## 0. 给 Work 会话的执行指令
 
 你正在帮助我和一位合作者开发一个参加 OpenAI Build Week 的 macOS 项目。
@@ -161,7 +165,7 @@ Recall 自动保存：
 
 本项目不是以功能数量衡量，而是以一个强而完整的演示闭环衡量。
 
-Build Week 官方评审维度包括技术实现、设计和用户体验、潜在影响以及创意质量，并强调对 GPT-5.6 和 Codex 的周全使用。因此项目应优先体现“AI 为什么对这个产品不可替代”，而不是堆叠普通 CRUD 功能。citeturn742360search0
+Build Week 官方评审维度包括技术实现、设计和用户体验、潜在影响以及创意质量，并强调对 GPT-5.6 和 Codex 的周全使用。因此项目应优先体现“AI 为什么对这个产品不可替代”，而不是堆叠普通 CRUD 功能。
 
 ## 3.1 必须成功的主流程
 
@@ -539,7 +543,7 @@ Demo 时可以：
 
 ## 7.4 OpenAI 集成方式
 
-后端使用官方 OpenAI SDK和 Responses API，API Key 从环境变量读取。官方快速入门说明 SDK 可以从环境变量取得 `OPENAI_API_KEY`，并展示了通过 Responses API 发起模型请求的方式。citeturn613152search0
+后端使用官方 OpenAI SDK 和 Responses API，API Key 从环境变量读取。官方快速入门说明 SDK 可以从环境变量取得 `OPENAI_API_KEY`，并展示了通过 Responses API 发起模型请求的方式。
 
 模型名称不得散落在代码中，使用环境变量：
 
@@ -549,7 +553,7 @@ OPENAI_MODEL=
 OPENAI_EMBEDDING_MODEL=
 ```
 
-AI 整理结果应使用 JSON Schema Structured Outputs，而不是让模型随意输出 JSON 字符串。官方 API 文档说明 `json_schema` 可以约束模型匹配指定结构，并建议在支持的模型上优先于旧的 JSON mode。citeturn613152search1
+AI 整理结果应使用 JSON Schema Structured Outputs，而不是让模型随意输出 JSON 字符串。官方 API 文档说明 `json_schema` 可以约束模型匹配指定结构，并建议在支持的模型上优先于旧的 JSON mode。
 
 ---
 
@@ -1489,7 +1493,7 @@ feature/demo-polish
 
 ## 当前时间背景
 
-官方 Build Week 页面列出的提交截止日期为 2026 年 7 月 21 日，并要求提交项目说明、Demo 视频和代码仓库等材料。citeturn742360search0
+官方 Build Week 页面列出的提交截止日期为 2026 年 7 月 21 日，并要求提交项目说明、Demo 视频和代码仓库等材料。
 
 以下按 7 月 18 日至 7 月 21 日安排。
 

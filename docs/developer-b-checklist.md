@@ -1,31 +1,33 @@
-# Developer B live build checklist
+# Development live build checklist
 
-Owner: Developer B — Intelligence and Data
+Historical owner: Developer B — Intelligence and Data
 
 Project: Recall
 
 Last updated: 2026-07-20
 
-Current phase: screenshot-to-notes live verification complete; delivery tracked by PR #5
+Current phase: post-P0 usability, documentation, and release readiness
 
 Current branch: `main`
 
-Last verified commit: `23b542e`
+Last verified commit: `7300106`
 
 Canonical target: `main`
 
-Integration inputs: hardened backend and Chrome tree at `5ea3d2a`, macOS client
-at `12862d3`, backend recovery/startup work at `40c07f0`, keyboard-first Chrome
-capture at `b3a524a`, and current shared contracts/documentation. Their histories
-are combined on `main`. The current hardening tree passes 214 backend tests,
-44/44 stress scenarios, 16 extension tests, and 43 macOS tests.
+The canonical `main` tree combines the hardened backend, Chrome extension,
+macOS client, screenshot OCR, shared contracts, and layered CI. The current
+baseline passes 214 backend tests, 44/44 stress scenarios, 16 extension tests,
+and 43 macOS tests.
 
 Last baseline cross-check: 2026-07-18 against all sections of
 `docs/product-plan.md`
 
-This is the live execution record for the backend, AI/data, retrieval, and
-Chrome-extension workstream. Update it before and after meaningful work. Do not
-mark a layer complete unless its exit gate has evidence.
+This is the detailed historical execution and evidence record. Developer A/B
+labels below describe the original Build Week split, not current assignment
+boundaries. Use [`roadmap.md`](roadmap.md) for current priorities and component
+ownership. Unchecked historical rehearsal rows are not automatically current
+product blockers; blockers must also appear in the current status summary or
+roadmap.
 
 ## Status rules
 
@@ -170,7 +172,9 @@ Status: `[x]` complete
 
 ## Deliverables
 
-- [x] Copy the authoritative outline to `docs/product-plan.md` without edits.
+- [x] Preserve the authoritative outline in `docs/product-plan.md`. The initial
+  Layer 0 copy was byte-identical; later repository hygiene adds only a current
+  roadmap note and removes four non-portable internal citation markers.
 - [x] Create `docs/architecture.md` with boundaries and work ownership.
 - [x] Create `docs/decisions.md` with baseline/addition classifications.
 - [x] Create `contracts/capture.schema.json`.
@@ -189,7 +193,9 @@ Status: `[x]` complete
 - [x] Negative fixtures rejected for missing fields, extra fields, and empty
   source content.
 - [x] Generated §12.1 embedding input exactly matches the checked-in fixture.
-- [x] `docs/product-plan.md` exactly matches the original outline.
+- [x] The initial Layer 0 `docs/product-plan.md` exactly matched the original
+  outline. Git history retains that source after the later navigation/citation
+  cleanup and removal of its redundant root-level copy.
 - [x] Secret-pattern scan found no API key.
 - [x] Git whitespace audit passed before commit.
 - [x] Commit `e75f783` pushed to `origin/agent/layer-0-contracts`.
@@ -578,7 +584,7 @@ macOS Clipboard Capture
 
 # Layer 5 — FTS5 keyword retrieval
 
-Status: `[x]` implementation and exit gate verified locally; delivery pending
+Status: `[x]` implementation, exit gate, and delivery complete
 
 ## Build tasks
 
@@ -1369,7 +1375,7 @@ resolved errors.
   route returned the expected provider-off 503, list returned 200 with no
   Captures, and the temporary service shut down cleanly.
 
-## E-053 — GitHub app could not create the draft pull request
+## E-056 — GitHub app could not create the draft pull request
 
 - Date: 2026-07-20
 - Status: Resolved 2026-07-20
@@ -1379,7 +1385,7 @@ resolved errors.
   workflow's documented fallback and opened draft PR #4:
   `https://github.com/CamaroW/capture/pull/4`.
 
-## E-054 — Sandboxed live-start probe could not bind a loopback port
+## E-057 — Sandboxed live-start probe could not bind a loopback port
 
 - Date: 2026-07-20
 - Status: Resolved 2026-07-20
