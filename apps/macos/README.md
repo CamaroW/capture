@@ -250,7 +250,9 @@ Run the build and tests again after regeneration.
 
 - Run as a normal Dock app with the existing `MenuBarExtra`. Closing the main
   window does not quit Recall, so menu-bar and global capture remain available
-  while the app is running.
+  while the app is running. The menu-bar label uses the monochrome
+  `RecallMarkTemplate` asset so macOS can adapt it to the current appearance;
+  Quick Capture reuses the same mark in the app accent color.
 - Register native global selection, screenshot, and clipboard shortcuts with
   Carbon `RegisterEventHotKey`. Defaults are `Option+Shift+Command+S`,
   `Option+Shift+Command+4`, and `Option+Shift+Command+C`, respectively. Carbon

@@ -66,6 +66,11 @@ split; they are no longer assignment gates.
   page, long previews scroll without stretching Save, and the inline composer
   wraps page titles and can be dragged within the viewport. The 70/70 extension
   suite and bounded real-Chrome checks pass.
+- D-040 makes `icon128.png` the browser artwork master while retaining derived
+  native-size manifest files, wraps and independently scrolls long Page metadata
+  in the popup, and reuses one adaptive vector Recall mark in the macOS menu bar
+  and Quick Capture header. The 70/70 extension and 189/189 host macOS suites
+  pass; live appearance acceptance remains.
 - The macOS app and Chrome extension are separate clients of the loopback
   FastAPI service. The app does not yet package or start that service.
 
@@ -171,13 +176,18 @@ not approval from a particular historical developer role.
    inline page titles, and adds viewport-bounded header dragging. The user's
    inline-access preference stayed off during isolated-harness acceptance; all
    70 extension tests pass.
-9. **App-managed local service lifecycle.** Define how a packaged Recall app
+9. **Cross-client icon alignment — implemented; live appearance acceptance
+   pending.** D-040 derives Chrome's 16/32/48 assets from the canonical
+   `icon128.png`, makes long popup Page metadata wrap and scroll, and introduces
+   a monochrome vector Recall mark for the native menu bar and Quick Capture.
+   All 70 extension and 189 host macOS tests pass.
+10. **App-managed local service lifecycle.** Define how a packaged Recall app
    starts, monitors, and stops the backend without assuming a repository checkout
    or terminal command. Keep this separate from browser native messaging.
-10. **Menu-bar image drop.** After image semantics are decided, add a bounded
+11. **Menu-bar image drop.** After image semantics are decided, add a bounded
    drop target. A click-open drop zone may precede a custom AppKit status item
    that opens when an image is dragged directly over the icon.
-11. **Release readiness.** Finish licensing, screenshots, demo materials,
+12. **Release readiness.** Finish licensing, screenshots, demo materials,
    packaging/notarization decisions, a stable tag, and clean-machine setup proof.
 
 ## Later product polish

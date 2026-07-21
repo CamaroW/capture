@@ -3,6 +3,11 @@
 This is a build-free Manifest V3 extension. Chrome runs the checked-in ES
 modules directly; only Node's built-in test runner is used during development.
 
+`assets/icons/icon128.png` is the canonical browser logo. Keep Chrome's 16-,
+32-, and 48-pixel files because the manifest uses native sizes for crisp toolbar
+rendering, but regenerate them from that 128-pixel master instead of maintaining
+independent artwork.
+
 ## Load unpacked
 
 1. Start the Recall backend at `http://127.0.0.1:8765`.
@@ -55,7 +60,9 @@ The action popup uses a fixed 380 × 560 pixel root and an internal vertical
 scroller. The selection preview is independently scrollable and vertically
 resizable, while the Save button keeps a fixed 40-pixel height. The explicit
 root size avoids viewport-relative feedback while Chrome is calculating the
-popup's own window, and keeps every control reachable.
+popup's own window, and keeps every control reachable. The Page title and URL
+wrap instead of being ellipsized and share a keyboard-focusable, independently
+scrollable metadata region for unusually long values.
 
 The extension always requests only `activeTab`, `scripting`, `storage`, and
 access to the fixed localhost backend. HTTP/HTTPS page access is optional,

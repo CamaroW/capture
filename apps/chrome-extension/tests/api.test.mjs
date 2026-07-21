@@ -254,6 +254,7 @@ test("popup preserves toolbar capture with branded, stable, scrollable controls"
   assert.match(html, /Retry uses the original source and note\./);
   assert.match(html, /src="\.\.\/\.\.\/assets\/icons\/icon32\.png"/);
   assert.match(html, /id="settings-button"/);
+  assert.match(html, /class="source-content"[\s\S]*tabindex="0"/);
   assert.doesNotMatch(html, /Show Add to Recall when I select text/);
   assert.match(popupSource, /"Saved\."/);
   assert.match(popupSource, /"Your source and note are safely stored\."/);
@@ -275,6 +276,11 @@ test("popup preserves toolbar capture with branded, stable, scrollable controls"
   assert.match(popupStyles, /\.popup-shell \{[^}]*display: flex;/);
   assert.match(popupStyles, /\.selection-preview \{[^}]*overflow: auto;/);
   assert.match(popupStyles, /\.selection-preview \{[^}]*resize: vertical;/);
+  assert.match(popupStyles, /\.source-content \{[^}]*overflow: auto;/);
+  assert.match(popupStyles, /\.source-content \{[^}]*max-height: 82px;/);
+  assert.match(popupStyles, /\.source-card h2 \{[^}]*white-space: normal;/);
+  assert.match(popupStyles, /\.page-url \{[^}]*white-space: normal;/);
+  assert.doesNotMatch(popupStyles, /\.source-card h2 \{[^}]*text-overflow: ellipsis;/);
   assert.doesNotMatch(popupStyles, /-webkit-line-clamp/);
   assert.match(popupStyles, /#save-button \{[^}]*height: 40px;/);
   assert.match(popupStyles, /#save-button \{[^}]*flex: 0 0 40px;/);

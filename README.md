@@ -218,6 +218,13 @@ header can move the composer within the visible viewport. These layouts passed
 bounded real-Chrome acceptance without changing the user's disabled inline-
 access preference.
 
+D-040 treats the 128-pixel Chrome logo as the canonical browser artwork and
+derives the required 16-, 32-, and 48-pixel manifest assets from it. The toolbar
+popup's Page title and URL now wrap inside their own scrollable region. Native
+menu-bar and Quick Capture surfaces share a new monochrome vector rendering of
+the same Recall mark, allowing the menu-bar icon to follow the current macOS
+appearance without using the colored app-icon square.
+
 D-031 adds configurable native global screenshot and clipboard capture without
 changing the API, schemas, backend, extension, or screenshot privacy boundary.
 Registration changes are transactional, failures remain visible in the menu
@@ -296,7 +303,7 @@ level timestamps, and gives connection, clipboard, save, and processing notices
 state-aware lifetimes. Settings is split into Shortcuts and Privacy & Features,
 and the image-note review layout no longer shifts when AI indexing is toggled.
 
-The integrated D-038/D-039 tree passes 243 backend tests, 44/44 stress scenarios,
+The integrated D-038/D-040 tree passes 243 backend tests, 44/44 stress scenarios,
 189/189 macOS tests, and 70/70 Chrome-extension tests. Real-app acceptance for
 the new edit, sort, notice, Settings, and image-composer interactions remains
 the final pre-merge check.

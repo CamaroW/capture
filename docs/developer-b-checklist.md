@@ -96,7 +96,7 @@ Update protocol:
 | 3 | Capture CRUD and first integration | Complete | Backend CRUD plus live macOS list/detail/clipboard evidence close D-013 and B-006 |
 | 4 | OpenAI enrichment | Complete | Deterministic coverage plus real Responses API `processing → ready` proof resolve B-007 |
 | 5 | FTS5 keyword retrieval | Complete | Commit `d34a567` pushed; 119 tests and provider-off live/restart proof pass |
-| 6 | Chrome capture | Complete and real-Chrome verified | 70/70 tests pass; D-039 adds branded settings, stable scroll/resize behavior, wrapped titles, and a viewport-bounded movable inline composer |
+| 6 | Chrome capture | Complete and real-Chrome verified | 70/70 tests pass; D-039/D-040 add branded settings, stable scroll/resize behavior, wrapped Page metadata, a viewport-bounded movable inline composer, and canonical generated icon sizes |
 | 7 | Embeddings and hybrid retrieval | Complete | Real embedding and vague semantic-query proof with non-null score resolve B-008 |
 | 8 | Reliability and demo readiness | P0 integration verified / backlog reduced | Layer 8 baseline passes 214 backend tests and 44/44 stress scenarios; stale-process recovery and version-aware one-command startup are verified |
 | 9 | Optional Apple on-device path | Gated | Decision D-008 accepted; prerequisites unmet |
@@ -113,6 +113,7 @@ Update protocol:
 | Addition | Persisted image notes and visual indexing | Implemented; primary real-app flow accepted | D-037 adds one bounded local image, separate note, off-by-default AI master switch, existing-search reuse, rendering, retry, and deletion; 235 backend and 184 integrated macOS tests pass |
 | Addition | Editable memories and UI state polish | Implemented; automated verification complete | D-038 adds a separate user-edit layer, migration 005, explicit AI refresh, creation/edit sorting, state-driven notices, Settings tabs, and stable image-note layout; 243 backend, 44/44 stress, 68/68 Chrome, and 189/189 macOS checks pass |
 | Addition | Chrome extension UI and settings polish | Implemented and real-Chrome verified | D-039 moves inline access to a branded options page, exposes Chrome shortcut management, stabilizes the popup, wraps long titles, and adds viewport-bounded composer dragging; 70/70 extension tests pass |
+| Addition | Cross-client Recall icon alignment | Implemented; live appearance acceptance pending | D-040 derives Chrome's required small icons from `icon128.png`, wraps/scrolls popup Page metadata, and adds one adaptive native vector mark; 70/70 extension and 189/189 host macOS tests pass |
 
 The D-023 integration closes B-010, the macOS slice closes B-006, and real
 provider plus unpacked-Chrome evidence closes B-007, B-008, and B-009. B-011 is
@@ -168,6 +169,23 @@ Chrome UI acceptance complete
   long-title wrapping, and viewport-edge dragging.
 - [x] Pass all 70 dependency-free extension tests, including manifest/options,
   scroll/resize, fixed-button, title-wrap, branding, drag, and clamp regressions.
+
+## Active addition — canonical browser and adaptive native icons
+
+Status: `[~]` D-040 implementation and automated verification complete; live
+appearance acceptance remains
+
+- [x] Keep `icon128.png` as the canonical browser logo and regenerate Chrome's
+  required 16-, 32-, and 48-pixel native assets from it.
+- [x] Replace Page title and URL ellipsis in the action popup with wrapping
+  inside an independently scrollable, keyboard-focusable metadata region.
+- [x] Add one transparent monochrome vector Recall mark and reuse it as an
+  adaptive `MenuBarExtra` template icon and accent-colored Quick Capture icon.
+- [x] Pass all 70 extension tests and all 189 host macOS tests, including
+  production Apple Vision OCR.
+- [ ] Confirm the updated popup, menu-bar icon, and Quick Capture header in the
+  user's running Chrome/app. Automated screen inspection was unavailable because
+  macOS ScreenCaptureKit could not start in the verification session.
 
 ## Completed addition — persisted image notes and visual indexing
 
@@ -2655,3 +2673,19 @@ resolved errors.
   server cleanly.
 - Project impact: Local visual-verification environment only; no product port,
   backend process, or persistent service changed.
+
+## E-064 — ScreenCaptureKit blocked automated D-040 appearance inspection
+
+- Date: 2026-07-21
+- Status: Open acceptance item; implementation verification complete
+- Symptom: The local UI-control session could not acquire a Chrome or native-app
+  screenshot and returned `SCStreamErrorDomain` code `-3811`.
+- Cause: macOS failed to start the requested ScreenCaptureKit stream in the
+  desktop verification environment. The failure occurred before Recall or the
+  extension UI was inspected.
+- Resolution: Verified the template SVG through a rendered preview, compiled it
+  through Xcode, added popup layout regressions, and passed all 70 extension and
+  189 host macOS tests. Retain live appearance inspection as the remaining
+  acceptance item rather than treating the system failure as product evidence.
+- Project impact: Visual acceptance only; no product build, test, or runtime
+  failure was observed.

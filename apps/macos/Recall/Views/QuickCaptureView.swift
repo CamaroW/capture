@@ -53,9 +53,13 @@ struct QuickCaptureView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Image(systemName: "sparkles.rectangle.stack")
-                    .font(.system(size: 28))
+                Image("RecallMarkTemplate")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 32, height: 32)
                     .foregroundStyle(Color.accentColor)
+                    .accessibilityHidden(true)
             }
 
             if draft.kind == .screenshot {

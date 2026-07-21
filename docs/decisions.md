@@ -53,6 +53,7 @@ addition made beyond [`product-plan.md`](product-plan.md).
 | D-037 | Persisted image notes with opt-in background visual indexing | Addition | Implemented; automated verification and real-app AI-disabled/AI-enabled acceptance pass |
 | D-038 | Editable memories with explicit user overrides and state-driven UI | Addition | Implemented on `codex/note-editing-ui-polish`; 243 backend, 44/44 stress, 68/68 Chrome, and 189/189 macOS checks pass |
 | D-039 | Branded Chrome settings and movable capture surfaces | Addition | Implemented and real-Chrome verified on `codex/note-editing-ui-polish`; 70/70 extension tests pass |
+| D-040 | Canonical browser icon and adaptive native brand mark | UI/UX addition | Implemented on `codex/note-editing-ui-polish`; 70/70 extension and 189/189 host macOS tests pass |
 
 ## D-001 — Localhost monorepo architecture
 
@@ -1202,6 +1203,37 @@ selection pill, wrapped long source title, and a composer dragged to the viewpor
 edge. The user's inline-access preference remained off throughout this visual
 check; the isolated production-script harness exercised the inline UI without
 changing that permission.
+
+## D-040 — Canonical browser icon and adaptive native brand mark
+
+- Classification: UI/UX addition approved by user direction
+- Status: Implemented on `codex/note-editing-ui-polish`; 70/70 extension and
+  189/189 host macOS tests pass
+- Product impact: Keeps browser and native capture surfaces recognizable while
+  preserving platform-appropriate rendering and long Page metadata
+- Schedule impact: Bounded asset and presentation change; no API, storage, or
+  migration work
+
+The checked-in 128-pixel Chrome image is the canonical browser logo. Chrome's
+16-, 32-, and 48-pixel files remain because the manifest benefits from real
+native-size raster assets, but they are derived from that master rather than
+maintained as separate artwork. The action popup's Page title and URL no longer
+use ellipsis: they wrap within a bounded, keyboard-focusable region that scrolls
+independently when either value is unusually long.
+
+The macOS asset catalog adds one transparent vector `RecallMarkTemplate` that
+uses the Recall logo's ring, satellite circle, and center dot as monochrome
+geometry. `MenuBarExtra` renders it as a template so macOS supplies the correct
+light/dark and selected-state color. The shared Quick Capture header uses the
+same vector with Recall's accent color, including the screenshot-note save
+window. The colored square AppIcon remains the application and Dock icon.
+
+Xcode compiled the vector asset and the host suite passed all 189 tests,
+including production Apple Vision OCR. The dependency-free extension suite
+passed all 70 tests, including new regressions for Page wrapping, independent
+scrolling, and removal of title ellipsis. Live screen inspection was unavailable
+in the verification environment because macOS ScreenCaptureKit could not start;
+asset rendering, compilation, and automated layout evidence remain complete.
 
 ## Pending decisions
 

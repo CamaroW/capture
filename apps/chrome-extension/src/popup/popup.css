@@ -112,22 +112,39 @@ h1 {
   box-shadow: 0 8px 26px rgb(91 43 62 / 7%);
 }
 
+.source-content {
+  overflow: auto;
+  max-height: 82px;
+  margin-top: 5px;
+  padding-right: 3px;
+  overflow-wrap: anywhere;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.source-content:focus-visible {
+  border-radius: 6px;
+  outline: 3px solid rgb(201 47 99 / 18%);
+  outline-offset: 2px;
+}
+
 .source-card h2 {
-  overflow: hidden;
-  margin: 5px 0 2px;
+  margin: 0 0 3px;
   font-size: 14px;
   line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .page-url {
-  overflow: hidden;
   margin-bottom: 0;
   color: #8a6b77;
   font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  white-space: normal;
 }
 
 .section-heading {
