@@ -49,7 +49,8 @@ addition made beyond [`product-plan.md`](product-plan.md).
 | D-033 | Deterministic Chrome action-popup dimensions | Reliability safeguard | Implemented; 68/68 tests and real-Chrome selected/metadata layouts pass |
 | D-034 | User-triggered native Accessibility selection capture | Addition | Implemented; 108/108 host tests and primary-path user acceptance pass |
 | D-035 | Opt-in transactional clipboard fallback for native selection | Compatibility/privacy safeguard | Implemented; 149/149 host tests and user WeChat acceptance pass |
-| D-036 | Conservative structured-text line restoration | Capture-correctness addition | Implemented; live Gemini clipboard payload verified, app acceptance pending |
+| D-036 | Conservative structured-text line restoration | Capture-correctness addition | Merged in PR #14; live Gemini clipboard payload verified |
+| D-037 | Persisted image notes with opt-in background visual indexing | Addition | Implemented; automated verification and real-app AI-disabled/AI-enabled acceptance pass |
 
 ## D-001 — Localhost monorepo architecture
 
@@ -1012,11 +1013,60 @@ Application-scoped fallback also cannot prove per-control safety when a
 custom-drawn app omits those attributes; it remains opt-in and equivalent to the
 user explicitly asking Recall to perform Copy in that verified frontmost app.
 
+## D-037 — Persisted image notes with opt-in background visual indexing
+
+- Classification: Addition approved by user direction
+- Status: Implemented; automated verification and real-app AI-disabled and
+  AI-enabled image-note acceptance pass
+- Product impact: A screenshot can now remain an image memory with an optional
+  note instead of existing only as transient OCR input
+- Schedule impact: Crosses macOS, API, persistence, enrichment, search,
+  migration, deletion, and privacy boundaries
+
+D-027 remains the explicit **Text note** path: its temporary screenshot is
+discarded after GPT or Apple Vision extraction, and the user reviews text before
+saving. D-037 adds a separate **Image note** choice to the same screenshot
+review. Its original PNG is saved immediately as the authoritative source and
+its optional user note remains an independent field. V1 accepts exactly one PNG
+or JPEG per Capture, up to 8 MiB, 20,000 pixels per dimension, and 40
+megapixels. Attachment metadata lives in a normalized
+`capture_attachments` table while immutable bytes live under a configurable,
+application-owned directory beside the database by default; SQLite stores no
+image blob or user-controlled filesystem path.
+
+Image analysis is opt-in and off by default. A persisted global master switch is
+the privacy boundary: while it is off, the image-note draft cannot enable AI and
+the upload contract is forced to `analyze_image: false`. When the master switch
+is on, each new image draft defaults to analysis on but can be turned off for
+that image before saving. An analyzed image is first committed locally and then
+uses one background multimodal Structured Outputs request. OCR is
+stored in the existing `selected_text` field; visual title, summary, concepts,
+entities, tags, caveats, and search aliases use the existing AI fields. This
+preserves original/user/AI separation and lets FTS and semantic retrieval index
+both visible words and non-text visual meaning without a second search system.
+AI output is derived metadata only and never replaces the image. The Responses
+request explicitly uses `store: false`; this avoids Recall creating reusable
+server-side response state but does not supersede the provider's data policies.
+
+The attachment API returns an opaque loopback content path, never a filesystem
+path. Upload type/signature, dimensions, and byte bounds are validated before
+storage; random UUID filenames, path-containment checks, restrictive file modes,
+idempotent client IDs, and cleanup on failed or duplicate creation prevent user
+paths and retry files from leaking into persistence. Deleting a Capture removes
+its database/FTS/embedding state and referenced local image. Provider failure or
+backend restart leaves the original and note intact as a visible, retryable
+error. The first implementation deliberately reuses the existing in-process
+background-task boundary rather than introducing a queue service.
+
+D-036 remains a separate capture-correctness decision and was merged through PR
+#14 before D-037 integration. The image-note model does not change its bounded
+structured-clipboard resolver.
+
 ## D-036 — Conservative structured-text line restoration
 
 - Classification: Capture-correctness addition approved by user direction
-- Status: Implemented on `codex/text-capture-fidelity`; 176/176 host tests pass,
-  with real-source acceptance pending
+- Status: Merged through PR #14; 176/176 host tests and the live Gemini payload
+  verification pass
 - Product impact: Preserves useful paragraph and line boundaries when a source
   application supplies plain text together with HTML or RTF clipboard data
 - Schedule impact: Bounded first slice before image attachments or a full rich-

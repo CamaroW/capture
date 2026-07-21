@@ -8,7 +8,58 @@ actor MockRecallAPIClient: RecallAPIClient {
     }
 
     func health() async throws -> HealthResponse {
-        HealthResponse(status: "ok", database: "ok", openAIConfigured: true)
+        HealthResponse(
+            status: "ok",
+            database: "ok",
+            attachments: "ok",
+            openAIConfigured: true
+        )
+    }
+
+    func createImageCapture(_ request: ImageCaptureUploadRequest) async throws -> Capture {
+        let now = ISO8601DateFormatter().string(from: Date())
+        let attachmentID = UUID().uuidString.lowercased()
+        let capture = Capture(
+            id: UUID().uuidString.lowercased(),
+            clientCaptureID: request.metadata.clientCaptureID,
+            createdAt: now,
+            updatedAt: now,
+            capturedAt: request.metadata.capturedAt,
+            status: request.metadata.analyzeImage ? .processing : .ready,
+            sourceType: .screenshot,
+            sourceApp: request.metadata.sourceApp,
+            sourceTitle: nil,
+            sourceURL: nil,
+            selectedText: "",
+            surroundingContext: nil,
+            contextTruncated: false,
+            userNote: request.metadata.userNote,
+            aiTitle: nil,
+            aiSummary: nil,
+            problem: nil,
+            keyInsight: nil,
+            whySaved: nil,
+            caveats: [],
+            tags: [],
+            entities: [],
+            searchAliases: [],
+            errorMessage: nil,
+            enrichmentVersion: 1,
+            attachments: [
+                CaptureAttachment(
+                    id: attachmentID,
+                    kind: "image",
+                    mediaType: request.mediaType,
+                    byteSize: request.imageData.count,
+                    pixelWidth: 1,
+                    pixelHeight: 1,
+                    sha256: String(repeating: "0", count: 64),
+                    contentPath: "/v1/attachments/\(attachmentID)/content"
+                )
+            ]
+        )
+        captures.insert(capture, at: 0)
+        return capture
     }
 
     func createCapture(_ request: CaptureCreateRequest) async throws -> Capture {
@@ -63,6 +114,30 @@ actor MockRecallAPIClient: RecallAPIClient {
             )
         }
         return capture
+    }
+
+    func attachmentData(contentPath: String) async throws -> Data {
+        guard captures.contains(where: {
+            $0.attachments.contains(where: { $0.contentPath == contentPath })
+        }) else {
+            throw RecallAPIError.http(
+                statusCode: 404,
+                code: "attachment_not_found",
+                message: "Image attachment was not found."
+            )
+        }
+        return Data()
+    }
+
+    func deleteCapture(id: String) async throws {
+        guard captures.contains(where: { $0.id == id }) else {
+            throw RecallAPIError.http(
+                statusCode: 404,
+                code: "capture_not_found",
+                message: "Capture was not found."
+            )
+        }
+        captures.removeAll(where: { $0.id == id })
     }
 
     func search(query: String, limit: Int) async throws -> SearchResponse {

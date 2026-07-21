@@ -41,5 +41,6 @@
     "wrong deployment working directory"
   ],
   "error_message": null,
-  "enrichment_version": 1
+  "enrichment_version": 1,
+  "attachments": []
 }

@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     recall_host: str = "127.0.0.1"
     recall_port: int = Field(default=8765, ge=1, le=65535)
     recall_database_path: Path = Path("./data/recall.db")
+    recall_attachments_path: Path | None = None
     recall_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = (
         "INFO"
     )
@@ -124,7 +125,7 @@ class Settings(BaseSettings):
         return ",".join(validated)
 
     @model_validator(mode="after")
-    def resolve_database_path(self) -> "Settings":
+    def resolve_storage_paths(self) -> "Settings":
         path = self.recall_database_path.expanduser()
         if not path.is_absolute():
             path = REPOSITORY_ROOT / path
@@ -136,6 +137,29 @@ class Settings(BaseSettings):
             )
 
         self.recall_database_path = path
+
+        attachment_path = self.recall_attachments_path
+        if attachment_path is None:
+            attachment_path = path.parent / "attachments"
+        else:
+            attachment_path = attachment_path.expanduser()
+            if not attachment_path.is_absolute():
+                attachment_path = REPOSITORY_ROOT / attachment_path
+            attachment_path = attachment_path.resolve()
+
+        if attachment_path.exists() and not attachment_path.is_dir():
+            raise ValueError(
+                "RECALL_ATTACHMENTS_PATH must name a directory, not a file"
+            )
+        if (
+            attachment_path == path
+            or attachment_path in path.parents
+            or path in attachment_path.parents
+        ):
+            raise ValueError(
+                "RECALL_ATTACHMENTS_PATH must not contain the SQLite database file"
+            )
+        self.recall_attachments_path = attachment_path
         return self
 
     @property

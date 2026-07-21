@@ -20,6 +20,9 @@ struct CaptureRowView: View {
                     }
                 }
                 Spacer(minLength: 4)
+                if let attachment = capture.primaryImageAttachment {
+                    AttachmentImageView(attachment: attachment, style: .thumbnail)
+                }
             }
 
             if !capture.tags.isEmpty {

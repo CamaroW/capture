@@ -68,11 +68,13 @@ def test_release_wheel_loads_packaged_enrichment_schema(tmp_path: Path) -> None:
                 "import sys; "
                 f"sys.path.insert(0, {str(installed_directory)!r}); "
                 "from app.enrichment import enrichment_schema; "
+                "from app.image_enrichment import image_enrichment_schema; "
                 "from app.database import discover_migrations; "
                 "schema = enrichment_schema(); "
                 "assert schema['type'] == 'object'; "
                 "assert 'search_aliases' in schema['required']; "
-                "assert [item.version for item in discover_migrations()] == [1, 2, 3]"
+                "assert 'extracted_text' in image_enrichment_schema()['required']; "
+                "assert [item.version for item in discover_migrations()] == [1, 2, 3, 4]"
             ),
         ],
         cwd=tmp_path,

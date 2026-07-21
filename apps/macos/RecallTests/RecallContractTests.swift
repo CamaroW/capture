@@ -38,6 +38,19 @@ final class RecallContractTests: XCTestCase {
         XCTAssertEqual(capture.caveats.count, 2)
         XCTAssertNil(capture.errorMessage)
         XCTAssertEqual(capture.enrichmentVersion, 1)
+        XCTAssertTrue(capture.attachments.isEmpty)
+    }
+
+    func testCaptureWithoutAttachmentsStillDecodesForRollingUpgrade() throws {
+        var object = try ContractFixtures.readyCaptureJSONObject()
+        object.removeValue(forKey: "attachments")
+
+        let capture = try JSONDecoder().decode(
+            Capture.self,
+            from: JSONSerialization.data(withJSONObject: object)
+        )
+
+        XCTAssertTrue(capture.attachments.isEmpty)
     }
 
     func testDateParserAcceptsMicrosecondTimestamp() throws {

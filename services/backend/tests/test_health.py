@@ -33,6 +33,7 @@ def test_health_reports_database_and_missing_openai_key() -> None:
     assert response.json() == {
         "status": "ok",
         "database": "ok",
+        "attachments": "ok",
         "openai_configured": False,
     }
 
@@ -94,5 +95,6 @@ def test_health_returns_503_when_database_cannot_be_opened(
     assert response.json() == {
         "status": "degraded",
         "database": "error",
+        "attachments": "error",
         "openai_configured": False,
     }

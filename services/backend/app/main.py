@@ -9,10 +9,21 @@ from pathlib import Path
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import BackgroundTasks, Depends, FastAPI, Query, Request, Response, status
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import AfterValidator, BaseModel
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from pydantic import AfterValidator, BaseModel, ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api_errors import error_response
@@ -21,10 +32,16 @@ from app.api_models import (
     CaptureListResponse,
     CaptureResponse,
     ErrorEnvelope,
+    ImageCaptureCreateMetadata,
     ScreenshotOCRRequest,
     ScreenshotOCRResponse,
     SearchResponse,
     SearchResult,
+)
+from app.attachments import (
+    AttachmentStorage,
+    AttachmentStorageError,
+    AttachmentValidationError,
 )
 from app.checklist import build_checklist_snapshot
 from app.config import get_settings
@@ -41,7 +58,18 @@ from app.enrichment import (
     OpenAIEnrichmentProvider,
     mark_enrichment_not_configured,
 )
-from app.limits import SEARCH_QUERY_MAX_LENGTH
+from app.image_enrichment import (
+    ImageEnrichmentProvider,
+    ImageEnrichmentService,
+    OpenAIImageEnrichmentProvider,
+    mark_image_analysis_not_configured,
+)
+from app.limits import (
+    IMAGE_CAPTURE_METADATA_MAX_LENGTH,
+    SEARCH_QUERY_MAX_LENGTH,
+    SCREENSHOT_MAX_BYTES,
+)
+from app.models import AttachmentRecord, CaptureRecord
 from app.ocr import OCRFailure, OCRProvider, OpenAIOCRProvider
 from app.repository import (
     CaptureAlreadyProcessingError,
@@ -58,6 +86,7 @@ CHECKLIST_HTML = Path(__file__).resolve().parent / "static" / "checklist.html"
 class HealthResponse(BaseModel):
     status: Literal["ok", "degraded"]
     database: Literal["ok", "error"]
+    attachments: Literal["ok", "error"]
     openai_configured: bool
 
 
@@ -124,25 +153,33 @@ async def lifespan(_: FastAPI):
     settings = get_settings()
     try:
         apply_migrations(settings.recall_database_path)
-        recovered_count = CaptureRepository(
+        if settings.recall_attachments_path is None:  # pragma: no cover - validated.
+            raise MigrationError("Attachment storage path was not resolved")
+        storage = AttachmentStorage(settings.recall_attachments_path)
+        storage.ensure_available()
+        repository = CaptureRepository(
             settings.recall_database_path,
             initialize=False,
-        ).recover_stale_processing()
+        )
+        removed_orphans = storage.cleanup_unreferenced(repository.attachment_paths())
+        if removed_orphans:
+            logger.warning("Removed %s unreferenced attachment file(s)", removed_orphans)
+        recovered_count = repository.recover_stale_processing()
         if recovered_count:
             logger.warning(
                 "Marked %s interrupted processing Capture(s) as retryable errors",
                 recovered_count,
             )
-    except MigrationError:
-        logger.exception("SQLite migration failed; health will report degraded")
+    except (MigrationError, AttachmentStorageError):
+        logger.exception("Local storage startup failed; health will report degraded")
     yield
 
 
-app = FastAPI(title="Recall Backend", version="0.7.0", lifespan=lifespan)
+app = FastAPI(title="Recall Backend", version="0.8.0", lifespan=lifespan)
 app.add_middleware(
     ConfiguredCORSMiddleware,
     allow_origins=[],
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["Content-Type"],
     allow_credentials=False,
 )
@@ -151,6 +188,13 @@ app.add_middleware(
 def get_repository() -> CaptureRepository:
     settings = get_settings()
     return CaptureRepository(settings.recall_database_path, initialize=False)
+
+
+def get_attachment_storage() -> AttachmentStorage:
+    settings = get_settings()
+    if settings.recall_attachments_path is None:  # pragma: no cover - validated.
+        raise AttachmentStorageError("Attachment storage path is not configured")
+    return AttachmentStorage(settings.recall_attachments_path)
 
 
 def get_enrichment_provider() -> EnrichmentProvider | None:
@@ -180,6 +224,30 @@ def get_ocr_provider() -> OCRProvider | None:
     return OpenAIOCRProvider(
         api_key=settings.openai_api_key.get_secret_value(),
         model=settings.openai_model,
+    )
+
+
+def get_image_enrichment_provider() -> ImageEnrichmentProvider | None:
+    settings = get_settings()
+    if not settings.openai_configured or settings.openai_api_key is None:
+        return None
+    return OpenAIImageEnrichmentProvider(
+        api_key=settings.openai_api_key.get_secret_value(),
+        model=settings.openai_model,
+    )
+
+
+def capture_response(
+    repository: CaptureRepository,
+    record: CaptureRecord,
+    *,
+    attachments: list[AttachmentRecord] | None = None,
+) -> CaptureResponse:
+    return CaptureResponse.from_record(
+        record,
+        repository.list_attachments(record.id)
+        if attachments is None
+        else attachments,
     )
 
 
@@ -283,7 +351,7 @@ def create_capture(
         status="processing",
     )
     if not created:
-        return CaptureResponse.from_record(record)
+        return capture_response(repository, record)
     if provider is None:
         background_tasks.add_task(
             mark_enrichment_not_configured,
@@ -295,7 +363,98 @@ def create_capture(
             EnrichmentService(repository, provider, embedding_provider).run,
             record.id,
         )
-    return CaptureResponse.from_record(record)
+    return capture_response(repository, record)
+
+
+@app.post(
+    "/v1/image-captures",
+    response_model=CaptureResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {"model": ErrorEnvelope},
+        status.HTTP_503_SERVICE_UNAVAILABLE: {"model": ErrorEnvelope},
+    },
+)
+async def create_image_capture(
+    background_tasks: BackgroundTasks,
+    metadata: Annotated[str, Form(max_length=IMAGE_CAPTURE_METADATA_MAX_LENGTH)],
+    image: Annotated[UploadFile, File()],
+    repository: Annotated[CaptureRepository, Depends(get_repository)],
+    storage: Annotated[AttachmentStorage, Depends(get_attachment_storage)],
+    provider: Annotated[
+        ImageEnrichmentProvider | None,
+        Depends(get_image_enrichment_provider),
+    ],
+    embedding_provider: Annotated[
+        EmbeddingProvider | None,
+        Depends(get_embedding_provider),
+    ],
+) -> CaptureResponse | JSONResponse:
+    try:
+        capture_metadata = ImageCaptureCreateMetadata.model_validate_json(metadata)
+    except ValidationError as error:
+        return error_response(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            code="validation_error",
+            message="Image metadata does not satisfy the API contract.",
+            details=error.errors(include_url=False),
+        )
+
+    media_type = image.content_type or ""
+    try:
+        image_bytes = await image.read(SCREENSHOT_MAX_BYTES + 1)
+    finally:
+        await image.close()
+
+    try:
+        stored_attachment = storage.store(image_bytes, media_type)
+    except AttachmentValidationError as error:
+        return error_response(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            code="invalid_image",
+            message=str(error),
+        )
+    except AttachmentStorageError:
+        logger.exception("Image attachment storage is unavailable")
+        return error_response(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            code="attachment_storage_unavailable",
+            message="The image could not be saved to local attachment storage.",
+        )
+
+    try:
+        record, created = repository.create_with_attachment(
+            capture_metadata.to_storage_model(),
+            stored_attachment,
+            status="processing" if capture_metadata.analyze_image else "ready",
+        )
+    except Exception:
+        storage.delete(stored_attachment.relative_path)
+        raise
+
+    if not created:
+        storage.delete(stored_attachment.relative_path)
+        return capture_response(repository, record)
+
+    if capture_metadata.analyze_image:
+        if provider is None:
+            background_tasks.add_task(
+                mark_image_analysis_not_configured,
+                repository,
+                record.id,
+            )
+        else:
+            background_tasks.add_task(
+                ImageEnrichmentService(
+                    repository,
+                    storage,
+                    provider,
+                    embedding_provider,
+                ).run,
+                record.id,
+                stored_attachment.id,
+            )
+    return capture_response(repository, record)
 
 
 @app.post(
@@ -343,8 +502,18 @@ def list_captures(
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> CaptureListResponse:
     records = repository.list_captures(limit=limit, offset=offset)
+    attachments_by_capture = repository.list_attachments_for_captures(
+        record.id for record in records
+    )
     return CaptureListResponse(
-        items=[CaptureResponse.from_record(record) for record in records],
+        items=[
+            capture_response(
+                repository,
+                record,
+                attachments=attachments_by_capture[record.id],
+            )
+            for record in records
+        ],
         limit=limit,
         offset=offset,
     )
@@ -364,11 +533,18 @@ def search_captures(
         query=q,
         limit=limit,
     )
+    attachments_by_capture = repository.list_attachments_for_captures(
+        match.capture.id for match in matches
+    )
     return SearchResponse(
         query=q,
         results=[
             SearchResult(
-                capture=CaptureResponse.from_record(match.capture),
+                capture=capture_response(
+                    repository,
+                    match.capture,
+                    attachments=attachments_by_capture[match.capture.id],
+                ),
                 score=match.score,
                 keyword_score=match.keyword_score,
                 semantic_score=match.semantic_score,
@@ -400,8 +576,17 @@ def enrich_capture(
         EmbeddingProvider | None,
         Depends(get_embedding_provider),
     ],
+    image_provider: Annotated[
+        ImageEnrichmentProvider | None,
+        Depends(get_image_enrichment_provider),
+    ],
+    storage: Annotated[AttachmentStorage, Depends(get_attachment_storage)],
 ) -> CaptureResponse | JSONResponse:
-    if provider is None:
+    attachments = repository.list_attachments(str(capture_id))
+    is_image_capture = bool(attachments)
+    if (is_image_capture and image_provider is None) or (
+        not is_image_capture and provider is None
+    ):
         return error_response(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             code="openai_not_configured",
@@ -423,11 +608,27 @@ def enrich_capture(
             message="Capture enrichment is already processing.",
         )
 
-    background_tasks.add_task(
-        EnrichmentService(repository, provider, embedding_provider).run,
-        record.id,
-    )
-    return CaptureResponse.from_record(record)
+    if is_image_capture:
+        background_tasks.add_task(
+            ImageEnrichmentService(
+                repository,
+                storage,
+                image_provider,  # type: ignore[arg-type]
+                embedding_provider,
+            ).run,
+            record.id,
+            attachments[0].id,
+        )
+    else:
+        background_tasks.add_task(
+            EnrichmentService(
+                repository,
+                provider,  # type: ignore[arg-type]
+                embedding_provider,
+            ).run,
+            record.id,
+        )
+    return capture_response(repository, record)
 
 
 @app.get(
@@ -446,23 +647,94 @@ def get_capture(
             code="capture_not_found",
             message="Capture was not found.",
         )
-    return CaptureResponse.from_record(record)
+    return capture_response(repository, record)
+
+
+@app.get(
+    "/v1/attachments/{attachment_id}/content",
+    response_model=None,
+    responses={status.HTTP_404_NOT_FOUND: {"model": ErrorEnvelope}},
+)
+def get_attachment_content(
+    attachment_id: UUID,
+    repository: Annotated[CaptureRepository, Depends(get_repository)],
+    storage: Annotated[AttachmentStorage, Depends(get_attachment_storage)],
+) -> FileResponse | JSONResponse:
+    attachment = repository.get_attachment(str(attachment_id))
+    if attachment is None:
+        return error_response(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="attachment_not_found",
+            message="Image attachment was not found.",
+        )
+    try:
+        path = storage.read_path(attachment.relative_path)
+    except AttachmentStorageError:
+        logger.error("Attachment metadata points to a missing file: %s", attachment.id)
+        return error_response(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="attachment_file_missing",
+            message="The saved image file is unavailable.",
+        )
+    return FileResponse(
+        path,
+        media_type=attachment.media_type,
+        filename=None,
+        headers={
+            "Cache-Control": "private, max-age=31536000, immutable",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Disposition": "inline",
+        },
+    )
+
+
+@app.delete(
+    "/v1/captures/{capture_id}",
+    response_model=None,
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={status.HTTP_404_NOT_FOUND: {"model": ErrorEnvelope}},
+)
+def delete_capture(
+    capture_id: UUID,
+    repository: Annotated[CaptureRepository, Depends(get_repository)],
+    storage: Annotated[AttachmentStorage, Depends(get_attachment_storage)],
+) -> Response | JSONResponse:
+    paths = repository.delete(str(capture_id))
+    if paths is None:
+        return error_response(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="capture_not_found",
+            message="Capture was not found.",
+        )
+    for relative_path in paths:
+        try:
+            storage.delete(relative_path)
+        except AttachmentStorageError:
+            logger.exception("Deleted Capture left an orphan attachment file")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @app.get("/health", response_model=HealthResponse)
 def health(response: Response) -> HealthResponse:
     settings = get_settings()
     database = check_database(settings.recall_database_path)
-    if database == "error":
+    try:
+        get_attachment_storage().ensure_available()
+        attachments: Literal["ok", "error"] = "ok"
+    except AttachmentStorageError:
+        attachments = "error"
+    if database == "error" or attachments == "error":
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return HealthResponse(
             status="degraded",
             database=database,
+            attachments=attachments,
             openai_configured=settings.openai_configured,
         )
 
     return HealthResponse(
         status="ok",
         database=database,
+        attachments=attachments,
         openai_configured=settings.openai_configured,
     )

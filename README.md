@@ -32,19 +32,23 @@ clarifications are recorded in [`docs/decisions.md`](docs/decisions.md).
 ## Core workflow
 
 ```text
-Capture source text and an optional user note
+Capture source text or one original image, plus an optional user note
 → persist the original Capture immediately
-→ enrich it asynchronously with Structured Outputs
+→ optionally enrich it asynchronously with Structured Outputs
 → generate an embedding from the stable §12.1 text projection
 → retrieve it through keyword and semantic search
 ```
 
-The screenshot-note addition follows the same pipeline: select a screen region,
-choose the default **GPT · Cloud** extractor or **Apple Vision · On device**,
-then explicitly extract source text and optionally add the personal context only
-you know. Those remain separate Capture fields. Recall never writes screenshot
-bytes to SQLite; the macOS selection tool uses a random OS temporary PNG that is
-removed in the normal flow, and closing the draft clears its in-memory preview.
+After selecting a screen region, choose **Text note** to keep the D-027 workflow:
+extract with **GPT · Cloud** or **Apple Vision · On device**, review the result,
+and save only text plus your separate note. Choose **Image note** to preserve the
+original image and optionally add a note. Cloud image analysis has an
+off-by-default master privacy control. When enabled, each new image defaults to
+searchable background OCR and visual understanding, but you can turn it off for
+that image before saving. When the master control is off, the per-image control
+is disabled and images cannot be sent to OpenAI. SQLite stores attachment
+metadata, not image blobs; original bytes live in the application-owned
+attachments directory.
 
 ## Start the backend
 
@@ -53,9 +57,9 @@ recommended clean-start command creates or repairs the local environment, checks
 configuration and dependencies, starts the service, waits for health, and prints
 the local engineering URLs:
 
-> **Migration 003 boundary:** the screenshot build upgrades an existing database
-> on first start. Preserve a pre-upgrade database backup before starting this
-> version; the matching code rollback point is
+> **Migration 004 boundary:** the image-note build adds attachment metadata on
+> first start. Preserve a pre-upgrade database backup before starting this
+> version; migration 003's matching historical rollback point is
 > `rollback/pre-screenshot-ocr`. See the backend README before replacing or
 > moving a database.
 
@@ -262,7 +266,15 @@ resolver can preserve inline/display TeX and recover safe block boundaries.
 Native Accessibility selection remains unchanged and limited to what the source
 app exposes.
 
-Final regression also passes 215 backend tests, 44/44 stress scenarios, and
+D-037 adds persisted image notes. A screenshot draft can save one original PNG
+or JPEG with a separate note, display it in library/detail views, delete it with
+its local file, and—only within the global privacy master switch—run background
+OCR plus visual indexing into the existing search fields. Provider errors keep
+the original safe and support **Retry AI**. The user verified real-app image
+notes with AI both disabled and enabled.
+
+The integrated D-036/D-037 tree passes 235 backend tests, 44/44 stress
+scenarios, 184/184 macOS tests, and
 68/68 Chrome-extension tests.
 
 Live verification covers provider-off keyword fallback, real OpenAI enrichment

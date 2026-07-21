@@ -56,6 +56,25 @@ enum ScreenshotExtractionMode: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+enum ScreenshotNoteKind: String, CaseIterable, Identifiable, Sendable {
+    case image
+    case text
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .image: "Image note"
+        case .text: "Text note"
+        }
+    }
+}
+
+private enum PendingQuickCaptureRequest: Equatable, Sendable {
+    case text(CaptureCreateRequest)
+    case image(ImageCaptureUploadRequest)
+}
+
 enum BackendConnectionState: Equatable, Sendable {
     case checking
     case connected(openAIConfigured: Bool)
@@ -86,6 +105,7 @@ struct AppNotice: Identifiable, Equatable, Sendable {
 final class RecallStore: ObservableObject {
     static let selectionClipboardFallbackUserDefaultsKey =
         "selectionClipboardFallbackEnabled.v1"
+    static let imageAnalysisUserDefaultsKey = "imageAnalysisEnabled.v1"
     static let maximumSelectedTextLength = 12_000
     static let maximumUserNoteLength = 4_000
     static let maximumSearchQueryLength = 512
@@ -106,17 +126,33 @@ final class RecallStore: ObservableObject {
     @Published private(set) var selectionClipboardFallbackIsEnabled: Bool
     @Published private(set) var screenshotPreviewData: Data?
     @Published var screenshotExtractionMode: ScreenshotExtractionMode = .gpt
+    @Published var screenshotNoteKind: ScreenshotNoteKind = .text
+    @Published var imageAnalysisIsEnabled: Bool {
+        didSet {
+            imageAnalysisPreferenceUserDefaults?.set(
+                imageAnalysisIsEnabled,
+                forKey: Self.imageAnalysisUserDefaultsKey
+            )
+            screenshotImageAnalysisIsEnabled = imageAnalysisIsEnabled
+        }
+    }
+    @Published var screenshotImageAnalysisIsEnabled = false
+    var screenshotImageAnalysisWillRun: Bool {
+        imageAnalysisIsEnabled && screenshotImageAnalysisIsEnabled
+    }
     @Published private(set) var isPreparingScreenshot = false
     @Published private(set) var isExtractingScreenshot = false
     @Published private(set) var screenshotExtractionSummary: String?
     @Published var notice: AppNotice?
     @Published private(set) var searchFocusToken = UUID()
+    @Published private(set) var attachmentImageData: [String: Data] = [:]
 
     private let client: any RecallAPIClient
     private let clipboardService: any ClipboardCaptureServing
     private let accessibilitySelectionService: any AccessibilitySelectionServing
     private let selectionClipboardFallbackService: any SelectionClipboardFallbackServing
     private let selectionPreferenceUserDefaults: UserDefaults?
+    private let imageAnalysisPreferenceUserDefaults: UserDefaults?
     private let screenshotCaptureService: any ScreenshotCaptureServing
     private let localScreenshotExtractor: any LocalScreenshotTextExtracting
     private var libraryCaptures: [Capture] = []
@@ -126,7 +162,8 @@ final class RecallStore: ObservableObject {
     private var searchEndpointUnavailable = false
     private var didExplainSearchFallback = false
     private var searchGeneration = 0
-    private var attemptedQuickCaptureRequest: CaptureCreateRequest?
+    private var attemptedQuickCaptureRequest: PendingQuickCaptureRequest?
+    private var loadingAttachmentIDs: Set<String> = []
     private var activeScreenshotExtractionID: UUID?
     private var screenshotMediaType = "image/png"
     private let foregroundRefreshIntervalNanoseconds: UInt64
@@ -141,6 +178,8 @@ final class RecallStore: ObservableObject {
         selectionClipboardFallbackService: any SelectionClipboardFallbackServing = SystemSelectionClipboardFallbackService(),
         selectionClipboardFallbackIsEnabled: Bool = false,
         selectionPreferenceUserDefaults: UserDefaults? = nil,
+        imageAnalysisIsEnabled: Bool = false,
+        imageAnalysisPreferenceUserDefaults: UserDefaults? = nil,
         screenshotCaptureService: any ScreenshotCaptureServing = SystemScreenshotCaptureService(),
         localScreenshotExtractor: any LocalScreenshotTextExtracting = AppleVisionScreenshotTextExtractor(),
         foregroundRefreshIntervalNanoseconds: UInt64 = 5_000_000_000,
@@ -154,6 +193,9 @@ final class RecallStore: ObservableObject {
         self.selectionClipboardFallbackService = selectionClipboardFallbackService
         self.selectionClipboardFallbackIsEnabled = selectionClipboardFallbackIsEnabled
         self.selectionPreferenceUserDefaults = selectionPreferenceUserDefaults
+        self.imageAnalysisIsEnabled = imageAnalysisIsEnabled
+        self.screenshotImageAnalysisIsEnabled = imageAnalysisIsEnabled
+        self.imageAnalysisPreferenceUserDefaults = imageAnalysisPreferenceUserDefaults
         self.screenshotCaptureService = screenshotCaptureService
         self.localScreenshotExtractor = localScreenshotExtractor
         self.foregroundRefreshIntervalNanoseconds = foregroundRefreshIntervalNanoseconds
@@ -173,6 +215,10 @@ final class RecallStore: ObservableObject {
                 forKey: Self.selectionClipboardFallbackUserDefaultsKey
             ),
             selectionPreferenceUserDefaults: userDefaults,
+            imageAnalysisIsEnabled: userDefaults.bool(
+                forKey: Self.imageAnalysisUserDefaultsKey
+            ),
+            imageAnalysisPreferenceUserDefaults: userDefaults,
             screenshotCaptureService: SystemScreenshotCaptureService(),
             localScreenshotExtractor: AppleVisionScreenshotTextExtractor()
         )
@@ -192,6 +238,18 @@ final class RecallStore: ObservableObject {
         attemptedQuickCaptureRequest != nil
     }
 
+    var quickCaptureCanSubmit: Bool {
+        guard let draft = quickCaptureDraft,
+              draft.noteCharacterCount <= Self.maximumUserNoteLength,
+              draft.characterCount <= Self.maximumSelectedTextLength else {
+            return false
+        }
+        if draft.kind == .screenshot, screenshotNoteKind == .image {
+            return screenshotPreviewData != nil
+        }
+        return draft.characterCount > 0
+    }
+
     func start() async {
         guard !hasStarted else {
             await refresh()
@@ -209,7 +267,9 @@ final class RecallStore: ObservableObject {
         }
         do {
             let response = try await client.health()
-            if response.status == "ok" && response.database == "ok" {
+            if response.status == "ok"
+                && response.database == "ok"
+                && response.attachments == "ok" {
                 connectionState = .connected(openAIConfigured: response.openAIConfigured)
             } else {
                 connectionState = .degraded
@@ -555,6 +615,8 @@ final class RecallStore: ObservableObject {
             screenshotPreviewData = snapshot.imageData
             screenshotMediaType = snapshot.mediaType
             screenshotExtractionMode = .gpt
+            screenshotNoteKind = .text
+            screenshotImageAnalysisIsEnabled = imageAnalysisIsEnabled
             screenshotExtractionSummary = nil
             attemptedQuickCaptureRequest = nil
             quickCaptureError = nil
@@ -578,6 +640,11 @@ final class RecallStore: ObservableObject {
             return false
         }
         guard !isExtractingScreenshot else { return false }
+
+        // Calling extraction is an explicit request for the legacy text-note
+        // path. The screenshot UI already selects this mode before invoking it,
+        // while this assignment keeps programmatic callers unambiguous.
+        screenshotNoteKind = .text
 
         let extractionID = UUID()
         let draftID = draft.clientCaptureID
@@ -667,35 +734,65 @@ final class RecallStore: ObservableObject {
         }
 
         let note = draft.userNote.nonEmptyTrimmed == nil ? nil : draft.userNote
-        let currentRequest: CaptureCreateRequest
+        let currentRequest: PendingQuickCaptureRequest
         switch draft.kind {
         case .selection:
-            currentRequest = .clipboard(
-                clientCaptureID: draft.clientCaptureID,
-                capturedAt: draft.capturedAt,
-                text: draft.selectedText,
-                sourceApp: draft.sourceApplication,
-                userNote: note
+            currentRequest = .text(
+                .clipboard(
+                    clientCaptureID: draft.clientCaptureID,
+                    capturedAt: draft.capturedAt,
+                    text: draft.selectedText,
+                    sourceApp: draft.sourceApplication,
+                    userNote: note
+                )
             )
         case .clipboard:
-            currentRequest = .clipboard(
-                clientCaptureID: draft.clientCaptureID,
-                capturedAt: draft.capturedAt,
-                text: draft.selectedText,
-                sourceApp: draft.sourceApplication,
-                userNote: note
+            currentRequest = .text(
+                .clipboard(
+                    clientCaptureID: draft.clientCaptureID,
+                    capturedAt: draft.capturedAt,
+                    text: draft.selectedText,
+                    sourceApp: draft.sourceApplication,
+                    userNote: note
+                )
             )
         case .screenshot:
-            currentRequest = .screenshot(
-                clientCaptureID: draft.clientCaptureID,
-                capturedAt: draft.capturedAt,
-                text: draft.selectedText,
-                sourceApp: draft.sourceApplication,
-                userNote: note
-            )
+            if screenshotNoteKind == .image {
+                guard let screenshotPreviewData else {
+                    quickCaptureError = "The selected screenshot is no longer available. Capture the region again."
+                    return false
+                }
+                currentRequest = .image(
+                    ImageCaptureUploadRequest(
+                        metadata: ImageCaptureCreateMetadata(
+                            clientCaptureID: draft.clientCaptureID,
+                            sourceApp: draft.sourceApplication,
+                            userNote: note,
+                            capturedAt: draft.capturedAt,
+                            analyzeImage: screenshotImageAnalysisWillRun
+                        ),
+                        imageData: screenshotPreviewData,
+                        mediaType: screenshotMediaType
+                    )
+                )
+            } else {
+                guard draft.characterCount > 0 else {
+                    quickCaptureError = "Extract the screenshot text before saving a text note."
+                    return false
+                }
+                currentRequest = .text(
+                    .screenshot(
+                        clientCaptureID: draft.clientCaptureID,
+                        capturedAt: draft.capturedAt,
+                        text: draft.selectedText,
+                        sourceApp: draft.sourceApplication,
+                        userNote: note
+                    )
+                )
+            }
         }
 
-        let request: CaptureCreateRequest
+        let request: PendingQuickCaptureRequest
         if let attemptedQuickCaptureRequest {
             guard attemptedQuickCaptureRequest == currentRequest else {
                 quickCaptureError = "A previous save may already exist, so Recall must retry the original source and note. Cancel and capture again if you want to change the note."
@@ -712,7 +809,13 @@ final class RecallStore: ObservableObject {
         defer { isSubmittingCapture = false }
 
         do {
-            let capture = try await client.createCapture(request)
+            let capture: Capture
+            switch request {
+            case let .text(textRequest):
+                capture = try await client.createCapture(textRequest)
+            case let .image(imageRequest):
+                capture = try await client.createImageCapture(imageRequest)
+            }
             query = ""
             upsert(capture, insertAtFront: true)
             selectedCaptureID = capture.id
@@ -758,6 +861,7 @@ final class RecallStore: ObservableObject {
         screenshotPreviewData = nil
         screenshotExtractionSummary = nil
         screenshotMediaType = "image/png"
+        screenshotNoteKind = .text
     }
 
     func dismissQuickCapturePresentation() {
@@ -813,6 +917,53 @@ final class RecallStore: ObservableObject {
             updateConnectionState(after: error)
             notice = AppNotice(style: .error, message: error.recallUserMessage)
         }
+    }
+
+    func loadAttachmentImage(_ attachment: CaptureAttachment) async {
+        guard attachmentImageData[attachment.id] == nil,
+              !loadingAttachmentIDs.contains(attachment.id) else {
+            return
+        }
+        loadingAttachmentIDs.insert(attachment.id)
+        defer { loadingAttachmentIDs.remove(attachment.id) }
+        do {
+            let data = try await client.attachmentData(
+                contentPath: attachment.contentPath
+            )
+            guard !Task.isCancelled else { return }
+            attachmentImageData[attachment.id] = data
+        } catch {
+            guard !Self.isCancellation(error) else { return }
+            updateConnectionState(after: error)
+        }
+    }
+
+    func deleteCapture(id: String) async -> Bool {
+        let attachments = (
+            libraryCaptures.first(where: { $0.id == id })
+                ?? captures.first(where: { $0.id == id })
+        )?.attachments ?? []
+        do {
+            try await client.deleteCapture(id: id)
+        } catch let error as RecallAPIError where error.code == "capture_not_found" {
+            // The desired state is already true; remove the stale local row.
+        } catch {
+            guard !Self.isCancellation(error) else { return false }
+            updateConnectionState(after: error)
+            notice = AppNotice(style: .error, message: error.recallUserMessage)
+            return false
+        }
+
+        pollingTasks[id]?.cancel()
+        pollingTasks[id] = nil
+        pollingGenerations[id] = nil
+        for attachment in attachments {
+            attachmentImageData[attachment.id] = nil
+            loadingAttachmentIDs.remove(attachment.id)
+        }
+        removeCapture(id: id)
+        notice = AppNotice(style: .information, message: "Memory deleted.")
+        return true
     }
 
     func requestSearchFocus() {

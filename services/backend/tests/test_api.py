@@ -180,6 +180,20 @@ def test_valid_web_capture_returns_202_and_can_be_read(
     assert loaded["user_note"] == created["user_note"]
 
 
+def test_text_capture_can_be_deleted_through_shared_route(
+    api_client: tuple[TestClient, Path],
+) -> None:
+    client, _ = api_client
+    created = client.post("/v1/captures", json=fixture_request()).json()
+
+    response = client.delete(f"/v1/captures/{created['id']}")
+
+    assert response.status_code == 204
+    assert response.content == b""
+    assert client.get(f"/v1/captures/{created['id']}").status_code == 404
+    assert client.delete(f"/v1/captures/{created['id']}").status_code == 404
+
+
 def test_clipboard_capture_without_url_succeeds(
     api_client: tuple[TestClient, Path],
 ) -> None:

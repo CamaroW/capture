@@ -21,6 +21,28 @@ enum CaptureSourceType: String, Codable, Sendable {
     }
 }
 
+struct CaptureAttachment: Codable, Identifiable, Hashable, Sendable {
+    let id: String
+    let kind: String
+    let mediaType: String
+    let byteSize: Int
+    let pixelWidth: Int
+    let pixelHeight: Int
+    let sha256: String
+    let contentPath: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case kind
+        case mediaType = "media_type"
+        case byteSize = "byte_size"
+        case pixelWidth = "pixel_width"
+        case pixelHeight = "pixel_height"
+        case sha256
+        case contentPath = "content_path"
+    }
+}
+
 struct Capture: Codable, Identifiable, Hashable, Sendable {
     let id: String
     let clientCaptureID: String?
@@ -47,6 +69,7 @@ struct Capture: Codable, Identifiable, Hashable, Sendable {
     let searchAliases: [String]
     let errorMessage: String?
     let enrichmentVersion: Int
+    var attachments: [CaptureAttachment] = []
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -74,6 +97,7 @@ struct Capture: Codable, Identifiable, Hashable, Sendable {
         case searchAliases = "search_aliases"
         case errorMessage = "error_message"
         case enrichmentVersion = "enrichment_version"
+        case attachments
     }
 
     var displayTitle: String {
@@ -90,13 +114,17 @@ struct Capture: Codable, Identifiable, Hashable, Sendable {
             .nonEmptyTrimmed {
             return firstLine.truncated(to: 72)
         }
-        return "Untitled memory"
+        return attachments.isEmpty ? "Untitled memory" : "Image note"
     }
 
     var displaySummary: String? {
         aiSummary?.nonEmptyTrimmed
             ?? userNote?.nonEmptyTrimmed
             ?? selectedText.nonEmptyTrimmed?.truncated(to: 180)
+    }
+
+    var primaryImageAttachment: CaptureAttachment? {
+        attachments.first(where: { $0.kind == "image" })
     }
 
     var sourceLabel: String {
@@ -122,6 +150,42 @@ struct Capture: Codable, Identifiable, Hashable, Sendable {
 
     var createdDate: Date? {
         RecallDateParser.date(from: createdAt)
+    }
+}
+
+extension Capture {
+    /// Keeps a newer app compatible with a backend from before image attachments.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        clientCaptureID = try container.decodeIfPresent(String.self, forKey: .clientCaptureID)
+        createdAt = try container.decode(String.self, forKey: .createdAt)
+        updatedAt = try container.decode(String.self, forKey: .updatedAt)
+        capturedAt = try container.decode(String.self, forKey: .capturedAt)
+        status = try container.decode(CaptureStatus.self, forKey: .status)
+        sourceType = try container.decode(CaptureSourceType.self, forKey: .sourceType)
+        sourceApp = try container.decodeIfPresent(String.self, forKey: .sourceApp)
+        sourceTitle = try container.decodeIfPresent(String.self, forKey: .sourceTitle)
+        sourceURL = try container.decodeIfPresent(String.self, forKey: .sourceURL)
+        selectedText = try container.decode(String.self, forKey: .selectedText)
+        surroundingContext = try container.decodeIfPresent(String.self, forKey: .surroundingContext)
+        contextTruncated = try container.decode(Bool.self, forKey: .contextTruncated)
+        userNote = try container.decodeIfPresent(String.self, forKey: .userNote)
+        aiTitle = try container.decodeIfPresent(String.self, forKey: .aiTitle)
+        aiSummary = try container.decodeIfPresent(String.self, forKey: .aiSummary)
+        problem = try container.decodeIfPresent(String.self, forKey: .problem)
+        keyInsight = try container.decodeIfPresent(String.self, forKey: .keyInsight)
+        whySaved = try container.decodeIfPresent(String.self, forKey: .whySaved)
+        caveats = try container.decode([String].self, forKey: .caveats)
+        tags = try container.decode([String].self, forKey: .tags)
+        entities = try container.decode([String].self, forKey: .entities)
+        searchAliases = try container.decode([String].self, forKey: .searchAliases)
+        errorMessage = try container.decodeIfPresent(String.self, forKey: .errorMessage)
+        enrichmentVersion = try container.decode(Int.self, forKey: .enrichmentVersion)
+        attachments = try container.decodeIfPresent(
+            [CaptureAttachment].self,
+            forKey: .attachments
+        ) ?? []
     }
 }
 

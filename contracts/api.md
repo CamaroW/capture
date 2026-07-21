@@ -12,7 +12,8 @@ app, and Chrome extension. Product behavior remains governed by
 
 ## Protocol conventions
 
-- JSON request and response bodies use `application/json`.
+- JSON request and response bodies use `application/json`, except the image-note
+  creation route, which uses `multipart/form-data`.
 - API routes are prefixed with `/v1`; `/health` is intentionally unversioned.
 - Identifiers are server-generated UUID strings.
 - Timestamps are RFC 3339 strings. The server emits UTC timestamps with `Z`.
@@ -29,9 +30,9 @@ app, and Chrome extension. Product behavior remains governed by
 
 The client may omit optional fields instead of sending `null`. At least one of
 `selected_text`, `surrounding_context`, or `source_title` must contain text.
-`source_type` is `web`, `clipboard`, or `screenshot`. A screenshot Capture
-contains reviewed extracted text; the source image is not part of the Capture
-representation.
+`source_type` is `web`, `clipboard`, or `screenshot`. A text screenshot Capture
+contains reviewed extracted text. A separately created image note has one
+persisted image attachment and may begin with empty `selected_text`.
 
 ### Text limits
 
@@ -63,6 +64,31 @@ delete the original Capture.
 When `client_capture_id` is present, creation is idempotent: retries return the
 first persisted Capture and do not queue a second enrichment task. The field is
 optional, so requests without it always create a new Capture.
+
+## Image-note creation contract
+
+`POST /v1/image-captures` accepts `multipart/form-data` with exactly these
+parts:
+
+- `metadata`: a JSON string containing `client_capture_id`, optional
+  `source_app`, optional `user_note`, `captured_at`, and `analyze_image`;
+- `image`: one `image/png` or `image/jpeg` file, at most 8 MiB, 20,000 pixels
+  per dimension, and 40 megapixels total.
+
+`analyze_image` defaults to `false` when omitted, so contract drift fails
+private rather than uploading unexpectedly. The original image is validated,
+written to application-owned attachment storage, and linked to its Capture in
+one create operation. It is never placed
+inside SQLite or an OpenAI-generated field. `client_capture_id` makes retries
+idempotent and duplicate retry files are removed.
+
+When `analyze_image` is `false`, the response is immediately `ready`, with the
+original image and user note available but no generated interpretation. When it
+is `true`, the response is `processing`; one background vision request extracts
+visible text into `selected_text` and fills the ordinary enrichment fields.
+Those derived fields improve keyword, semantic, and visual-concept retrieval,
+but never replace the authoritative image. Provider failure changes the Capture
+to retryable `error` and leaves the image and note intact.
 
 ## Capture representation
 
@@ -106,9 +132,28 @@ All Capture-returning endpoints use this complete shape:
     "surprising Linux solution"
   ],
   "error_message": null,
-  "enrichment_version": 1
+  "enrichment_version": 1,
+  "attachments": []
 }
 ```
+
+An image note contains one attachment in v1:
+
+```json
+{
+  "id": "4fc18b08-8896-4bc8-9526-842f3988b21f",
+  "kind": "image",
+  "media_type": "image/png",
+  "byte_size": 482193,
+  "pixel_width": 1440,
+  "pixel_height": 900,
+  "sha256": "b2e7e24b10a55f1a81f77088d400cf1f7d33fa46e950800da97840c5e38451bf",
+  "content_path": "/v1/attachments/4fc18b08-8896-4bc8-9526-842f3988b21f/content"
+}
+```
+
+`relative_path` is private persistence metadata and is never returned. Text-only
+Captures always return `attachments: []`.
 
 `embedding_json` is an internal persistence field and is never returned to
 clients.
@@ -127,10 +172,15 @@ already `processing`.
 
 ## Enrichment contract
 
-The backend sends the source fields and user note to one OpenAI Responses API
-request and validates the model result against
+For text Captures, the backend sends the source fields and user note to one
+OpenAI Responses API request and validates the model result against
 [`enriched_capture.schema.json`](enriched_capture.schema.json) using strict
 Structured Outputs.
+
+For opted-in image notes, the backend sends the persisted image plus the user
+note to one multimodal Responses API request and validates OCR plus visual
+memory fields against `services/backend/app/schemas/image_enrichment.schema.json`.
+The raw image stays local when analysis is disabled.
 
 The backend maps model fields as follows:
 
@@ -217,13 +267,14 @@ Returns `200 OK` when the process and database are available. OpenAI can be
 unconfigured without making the local persistence API unhealthy.
 
 The database probe checks migration state, SQLite quick integrity, and the JSON
-array columns required to decode stored Captures. It returns `503` with
-`database: "error"` when those checks fail.
+array columns required to decode stored Captures. Attachment storage is also
+checked for local read/write availability. Either failure returns `503`.
 
 ```json
 {
   "status": "ok",
   "database": "ok",
+  "attachments": "ok",
   "openai_configured": false
 }
 ```
@@ -234,6 +285,15 @@ array columns required to decode stored Captures. It returns `503` with
 - Success: `202 Accepted`
 - Response: Capture with status `processing`
 - Validation failure: `422 Unprocessable Entity`
+
+### `POST /v1/image-captures`
+
+- Body: the multipart image-note contract above
+- Success: `202 Accepted`
+- Response: Capture with exactly one attachment and status `ready` or
+  `processing`
+- Invalid or oversized image/metadata: `422 Unprocessable Entity`
+- Attachment storage unavailable: `503 Service Unavailable`
 
 ### `POST /v1/ocr`
 
@@ -292,6 +352,21 @@ of the same user-facing extraction step and does not call this endpoint.
 - Success: `200 OK` with one Capture
 - Unknown ID: `404 Not Found`
 
+### `GET /v1/attachments/{id}/content`
+
+- Success: `200 OK` with the immutable PNG/JPEG bytes and `nosniff`
+- Unknown attachment or missing backing file: `404 Not Found`
+- The route is loopback-only like the rest of the API; clients use the
+  attachment's returned `content_path` rather than constructing a filesystem
+  path.
+
+### `DELETE /v1/captures/{id}`
+
+- Success: `204 No Content`
+- Unknown ID: `404 Not Found`
+- The Capture, FTS/embedding metadata, attachment rows, and referenced local
+  image files are removed. Deleting a text Capture uses the same route.
+
 ### `POST /v1/captures/{id}/enrich`
 
 Queues or starts a new enrichment attempt without changing original fields.
@@ -347,7 +422,6 @@ result. Scores are normalized to `0...1`.
 
 ### Deferred endpoints
 
-- `DELETE /v1/captures/{id}` — P1
 - `POST /v1/chat` — P1
 
 They are deliberately excluded from the Layer 0 P0 implementation contract.
@@ -375,13 +449,17 @@ Initial error codes:
 | HTTP | Code | Meaning |
 | --- | --- | --- |
 | 404 | `capture_not_found` | No Capture exists for the ID. |
+| 404 | `attachment_not_found` | No attachment metadata exists for the ID. |
+| 404 | `attachment_file_missing` | Attachment metadata exists but its local file is unavailable. |
 | 409 | `capture_already_processing` | Duplicate enrichment is in progress. |
 | 422 | `validation_error` | Request does not satisfy the contract. |
+| 422 | `invalid_image` | Uploaded image type, bytes, size, or dimensions are invalid. |
 | 502 | `ocr_provider_unavailable` | GPT screenshot extraction failed safely. |
 | 502 | `ocr_refused` | GPT refused the screenshot request. |
 | 502 | `invalid_ocr_output` | GPT returned no usable screenshot text. |
 | 502 | `ocr_text_too_long` | Extracted text exceeds the selected-source contract. |
 | 503 | `openai_not_configured` | Enrichment or GPT screenshot extraction cannot start without a key/model. |
+| 503 | `attachment_storage_unavailable` | The local attachment directory cannot store the image. |
 | 500 | `internal_error` | Unexpected backend failure. |
 
 ## CORS
@@ -390,7 +468,8 @@ Development may allow configured localhost and unpacked-extension origins.
 The submitted build must not use an unrestricted `*` origin. The final Chrome
 extension origin is configured through `RECALL_CORS_ORIGINS`. The backend
 rejects wildcards, public web origins, malformed extension IDs, credentials,
-paths, queries, and fragments; allowed methods are limited to `GET` and `POST`.
+paths, queries, and fragments; allowed methods are limited to `GET`, `POST`, and
+`DELETE`.
 
 ## Official OpenAI references
 

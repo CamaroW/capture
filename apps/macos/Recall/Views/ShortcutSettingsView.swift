@@ -92,6 +92,29 @@ struct ShortcutSettingsView: View {
                 )
             }
 
+            Section {
+                Toggle(
+                    "Allow cloud AI analysis for image notes",
+                    isOn: $store.imageAnalysisIsEnabled
+                )
+                Text(
+                    "This is the master privacy control. When enabled, new image notes "
+                        + "start with AI indexing on, and you can turn it off for one image "
+                        + "before saving. Recall saves the original locally first, then sends "
+                        + "enabled images to the configured GPT service for background OCR "
+                        + "and visual understanding. Provider data policies apply."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            } header: {
+                Text("Image notes")
+            } footer: {
+                Text(
+                    "Turning this off blocks AI analysis for every new image note and disables "
+                        + "the per-image control. Existing images and annotations are unchanged."
+                )
+            }
+
             if let errorMessage = shortcutCenter.errorMessage {
                 Section {
                     Label(errorMessage, systemImage: "exclamationmark.triangle.fill")

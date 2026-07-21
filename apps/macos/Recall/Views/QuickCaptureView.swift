@@ -27,6 +27,7 @@ struct QuickCaptureView: View {
         }
         .onAppear {
             noteIsFocused = store.quickCaptureDraft?.kind != .screenshot
+                || store.screenshotNoteKind == .image
         }
         .onExitCommand {
             cancel()
@@ -58,10 +59,11 @@ struct QuickCaptureView: View {
             }
 
             if draft.kind == .screenshot {
-                screenshotExtractionSection
+                screenshotSection
             }
 
-            VStack(alignment: .leading, spacing: 8) {
+            if draft.kind != .screenshot || store.screenshotNoteKind == .text {
+                VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text(draft.kind == .screenshot ? "EXTRACTED SOURCE TEXT" : "SELECTION")
                         .font(.caption.weight(.bold))
@@ -92,6 +94,7 @@ struct QuickCaptureView: View {
                     RoundedRectangle(cornerRadius: 11)
                         .stroke(.primary.opacity(0.08), lineWidth: 1)
                 }
+                }
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -115,10 +118,7 @@ struct QuickCaptureView: View {
                 .lineLimit(2...4)
                 .textFieldStyle(.roundedBorder)
                 .focused($noteIsFocused)
-                .disabled(
-                    store.isQuickCaptureRetryLocked
-                        || (draft.kind == .screenshot && draft.selectedText.isEmpty)
-                )
+                .disabled(store.isQuickCaptureRetryLocked)
                 .onSubmit {
                     save()
                 }
@@ -161,16 +161,14 @@ struct QuickCaptureView: View {
                 .disabled(
                     store.isSubmittingCapture
                         || store.isExtractingScreenshot
-                        || draft.characterCount == 0
-                        || draft.characterCount > RecallStore.maximumSelectedTextLength
-                        || draft.noteCharacterCount > RecallStore.maximumUserNoteLength
+                        || !store.quickCaptureCanSubmit
                 )
             }
         }
         .padding(24)
     }
 
-    private var screenshotExtractionSection: some View {
+    private var screenshotSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let data = store.screenshotPreviewData,
                let image = NSImage(data: data) {
@@ -183,56 +181,93 @@ struct QuickCaptureView: View {
                     .accessibilityLabel("Selected screenshot preview")
             }
 
-            Picker("Text extractor", selection: $store.screenshotExtractionMode) {
-                ForEach(ScreenshotExtractionMode.allCases) { mode in
-                    Text(mode.label).tag(mode)
+            Picker("Save as", selection: $store.screenshotNoteKind) {
+                ForEach(ScreenshotNoteKind.allCases) { kind in
+                    Text(kind.label).tag(kind)
                 }
             }
             .pickerStyle(.segmented)
             .disabled(store.isExtractingScreenshot || store.isQuickCaptureRetryLocked)
 
-            HStack {
+            if store.screenshotNoteKind == .image {
+                Toggle(isOn: $store.screenshotImageAnalysisIsEnabled) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Build a searchable AI index")
+                            .font(.headline)
+                        Text(
+                            !store.imageAnalysisIsEnabled
+                                ? "AI image analysis is blocked by the master privacy control in Settings. This image will stay local."
+                                : store.screenshotImageAnalysisWillRun
+                                    ? "Save immediately, then send the image to GPT in the background for OCR and visual understanding. Provider data policies apply."
+                                    : "Keep this image as a local attachment without OCR or visual analysis."
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
+                }
+                .toggleStyle(.switch)
+                .disabled(
+                    !store.imageAnalysisIsEnabled || store.isQuickCaptureRetryLocked
+                )
+
                 Label(
-                    store.screenshotExtractionMode == .gpt
-                        ? "Image is sent to GPT for this extraction only"
-                        : "Image stays on this Mac",
-                    systemImage: store.screenshotExtractionMode == .gpt
-                        ? "cloud"
-                        : "lock.shield"
+                    "The original image is stored locally; AI annotations remain separate and can fail without losing it.",
+                    systemImage: "photo.badge.checkmark"
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                Spacer()
-                Button {
-                    screenshotExtractionTask?.cancel()
-                    screenshotExtractionTask = Task { @MainActor in
-                        defer { screenshotExtractionTask = nil }
-                        if await store.extractScreenshotText() {
-                            noteIsFocused = true
-                        }
-                    }
-                } label: {
-                    if store.isExtractingScreenshot {
-                        ProgressView()
-                            .controlSize(.small)
-                            .frame(minWidth: 150)
-                    } else {
-                        Text(
-                            store.screenshotExtractionSummary == nil
-                                ? "Extract source text"
-                                : "Re-extract source text"
-                        )
-                        .frame(minWidth: 150)
+            } else {
+                Picker("Text extractor", selection: $store.screenshotExtractionMode) {
+                    ForEach(ScreenshotExtractionMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
                     }
                 }
-                .buttonStyle(.borderedProminent)
+                .pickerStyle(.segmented)
                 .disabled(store.isExtractingScreenshot || store.isQuickCaptureRetryLocked)
-            }
 
-            if let summary = store.screenshotExtractionSummary {
-                Label(summary, systemImage: "checkmark.circle.fill")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.green)
+                HStack {
+                    Label(
+                        store.screenshotExtractionMode == .gpt
+                            ? "Image is sent to GPT for this extraction only"
+                            : "Image stays on this Mac",
+                        systemImage: store.screenshotExtractionMode == .gpt
+                            ? "cloud"
+                            : "lock.shield"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        screenshotExtractionTask?.cancel()
+                        screenshotExtractionTask = Task { @MainActor in
+                            defer { screenshotExtractionTask = nil }
+                            if await store.extractScreenshotText() {
+                                noteIsFocused = true
+                            }
+                        }
+                    } label: {
+                        if store.isExtractingScreenshot {
+                            ProgressView()
+                                .controlSize(.small)
+                                .frame(minWidth: 150)
+                        } else {
+                            Text(
+                                store.screenshotExtractionSummary == nil
+                                    ? "Extract source text"
+                                    : "Re-extract source text"
+                            )
+                            .frame(minWidth: 150)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(store.isExtractingScreenshot || store.isQuickCaptureRetryLocked)
+                }
+
+                if let summary = store.screenshotExtractionSummary {
+                    Label(summary, systemImage: "checkmark.circle.fill")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.green)
+                }
             }
         }
     }
@@ -281,7 +316,7 @@ struct QuickCaptureView: View {
         switch kind {
         case .selection: "Capture Selection"
         case .clipboard: "Capture Clipboard"
-        case .screenshot: "Capture Screenshot Note"
+        case .screenshot: "Capture Screenshot"
         }
     }
 
@@ -305,7 +340,12 @@ struct QuickCaptureView: View {
         case .clipboard:
             return "Your clipboard text and optional note are saved before AI processing begins."
         case .screenshot:
-            return "Recall saves only the extracted source text and your optional note; closing clears the temporary image."
+            if store.screenshotNoteKind == .image {
+                return store.screenshotImageAnalysisWillRun
+                    ? "The image and note are saved first; OCR and visual indexing continue in the background."
+                    : "The image and optional note are saved locally without AI analysis."
+            }
+            return "Recall saves only the extracted source text and optional note; the temporary image is discarded."
         }
     }
 

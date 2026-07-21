@@ -33,6 +33,24 @@ def test_directory_is_rejected_as_database_path(tmp_path: Path) -> None:
         Settings(_env_file=None, recall_database_path=tmp_path)
 
 
+def test_attachment_path_must_not_contain_database(tmp_path: Path) -> None:
+    with pytest.raises(ValidationError, match="must not contain"):
+        Settings(
+            _env_file=None,
+            recall_database_path=tmp_path / "storage" / "recall.db",
+            recall_attachments_path=tmp_path / "storage",
+        )
+
+
+def test_database_path_must_not_contain_attachment_directory(tmp_path: Path) -> None:
+    with pytest.raises(ValidationError, match="must not contain"):
+        Settings(
+            _env_file=None,
+            recall_database_path=tmp_path / "recall.db",
+            recall_attachments_path=tmp_path / "recall.db" / "images",
+        )
+
+
 def test_cors_origins_are_parsed_from_comma_separated_setting() -> None:
     settings = Settings(
         _env_file=None,

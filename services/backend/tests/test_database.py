@@ -2,14 +2,28 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.database import MIGRATIONS_DIRECTORY, apply_migrations, database_connection
+from app.database import (
+    DATABASE_BUSY_TIMEOUT_SECONDS,
+    MIGRATIONS_DIRECTORY,
+    apply_migrations,
+    database_connection,
+)
+
+
+def test_database_connection_allows_bounded_write_lock_queueing(
+    tmp_path: Path,
+) -> None:
+    with database_connection(tmp_path / "recall.db") as connection:
+        busy_timeout_ms = connection.execute("PRAGMA busy_timeout").fetchone()[0]
+
+    assert busy_timeout_ms == DATABASE_BUSY_TIMEOUT_SECONDS * 1_000
 
 
 def test_migrations_are_idempotent_and_complete(tmp_path: Path) -> None:
     database_path = tmp_path / "recall.db"
 
-    assert apply_migrations(database_path) == 3
-    assert apply_migrations(database_path) == 3
+    assert apply_migrations(database_path) == 4
+    assert apply_migrations(database_path) == 4
 
     with database_connection(database_path) as connection:
         tables = {
@@ -35,7 +49,12 @@ def test_migrations_are_idempotent_and_complete(tmp_path: Path) -> None:
             )
         }
 
-    assert {"captures", "captures_fts", "schema_migrations"}.issubset(tables)
+    assert {
+        "captures",
+        "capture_attachments",
+        "captures_fts",
+        "schema_migrations",
+    }.issubset(tables)
     assert {
         "client_capture_id",
         "context_truncated",
@@ -62,6 +81,7 @@ def test_migrations_are_idempotent_and_complete(tmp_path: Path) -> None:
         (1, "initial_captures"),
         (2, "fts5_keyword_search"),
         (3, "screenshot_source_type"),
+        (4, "image_attachments"),
     ]
     assert triggers == {
         "captures_fts_after_insert",
@@ -109,7 +129,7 @@ def test_fts_migration_backfills_existing_capture(tmp_path: Path) -> None:
         )
         connection.commit()
 
-    assert apply_migrations(database_path) == 3
+    assert apply_migrations(database_path) == 4
 
     with database_connection(database_path) as connection:
         row = connection.execute(

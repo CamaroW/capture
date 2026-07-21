@@ -28,7 +28,7 @@ from app.limits import (
     USER_NOTE_MAX_LENGTH,
 )
 from app.ocr import decode_screenshot
-from app.models import CaptureRecord, NewCapture
+from app.models import AttachmentRecord, CaptureRecord, NewCapture
 
 
 URL_ADAPTER = TypeAdapter(AnyUrl)
@@ -100,6 +100,59 @@ class CaptureCreateRequest(ApiModel):
         return NewCapture.model_validate(self.model_dump())
 
 
+class ImageCaptureCreateMetadata(ApiModel):
+    client_capture_id: str
+    source_app: str | None = Field(default=None, max_length=SOURCE_APP_MAX_LENGTH)
+    user_note: str | None = Field(default=None, max_length=USER_NOTE_MAX_LENGTH)
+    captured_at: str
+    analyze_image: StrictBool = False
+
+    @field_validator("client_capture_id")
+    @classmethod
+    def validate_client_capture_id(cls, value: str) -> str:
+        UUID(value)
+        return value
+
+    @field_validator("captured_at")
+    @classmethod
+    def validate_captured_at(cls, value: str) -> str:
+        return CaptureCreateRequest.validate_captured_at(value)
+
+    def to_storage_model(self) -> NewCapture:
+        return NewCapture(
+            client_capture_id=self.client_capture_id,
+            captured_at=self.captured_at,
+            source_type="screenshot",
+            source_app=self.source_app,
+            selected_text="",
+            user_note=self.user_note,
+        )
+
+
+class AttachmentResponse(ApiModel):
+    id: str
+    kind: Literal["image"]
+    media_type: Literal["image/png", "image/jpeg"]
+    byte_size: int
+    pixel_width: int
+    pixel_height: int
+    sha256: str
+    content_path: str
+
+    @classmethod
+    def from_record(cls, record: AttachmentRecord) -> "AttachmentResponse":
+        return cls(
+            id=record.id,
+            kind=record.kind,
+            media_type=record.media_type,
+            byte_size=record.byte_size,
+            pixel_width=record.pixel_width,
+            pixel_height=record.pixel_height,
+            sha256=record.sha256,
+            content_path=f"/v1/attachments/{record.id}/content",
+        )
+
+
 class CaptureResponse(ApiModel):
     id: str
     client_capture_id: str | None
@@ -126,10 +179,20 @@ class CaptureResponse(ApiModel):
     search_aliases: list[str]
     error_message: str | None
     enrichment_version: int
+    attachments: list[AttachmentResponse] = Field(default_factory=list)
 
     @classmethod
-    def from_record(cls, record: CaptureRecord) -> "CaptureResponse":
-        return cls.model_validate(record.model_dump(exclude={"embedding"}))
+    def from_record(
+        cls,
+        record: CaptureRecord,
+        attachments: list[AttachmentRecord] | None = None,
+    ) -> "CaptureResponse":
+        values = record.model_dump(exclude={"embedding"})
+        values["attachments"] = [
+            AttachmentResponse.from_record(attachment)
+            for attachment in (attachments or [])
+        ]
+        return cls.model_validate(values)
 
 
 class CaptureListResponse(ApiModel):

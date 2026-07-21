@@ -775,6 +775,176 @@ final class RecallStoreTests: XCTestCase {
         XCTAssertNil(store.quickCaptureDraft)
     }
 
+    func testScreenshotCanSaveOriginalImageWithOptionalBackgroundAnalysis() async throws {
+        let client = RecordingAPIClient(createStatus: .ready)
+        let imageData = Data([1, 2, 3, 4])
+        let store = RecallStore(
+            client: client,
+            clipboardService: ClipboardServiceStub(
+                result: .failure(ClipboardCaptureError.noText)
+            ),
+            imageAnalysisIsEnabled: true,
+            screenshotCaptureService: ScreenshotServiceStub(
+                result: .success(
+                    ScreenshotSnapshot(
+                        imageData: imageData,
+                        mediaType: "image/png",
+                        sourceApplication: "Gemini"
+                    )
+                )
+            )
+        )
+        let prepared = await store.prepareScreenshotCapture()
+        XCTAssertTrue(prepared)
+        XCTAssertTrue(store.screenshotImageAnalysisIsEnabled)
+        store.screenshotNoteKind = .image
+        store.quickCaptureDraft?.userNote = "Find the logistic derivation later."
+
+        let saved = await store.submitQuickCapture()
+        XCTAssertTrue(saved)
+
+        let requests = await client.allImageCreateRequests()
+        let request = try XCTUnwrap(requests.first)
+        XCTAssertEqual(request.imageData, imageData)
+        XCTAssertEqual(request.mediaType, "image/png")
+        XCTAssertEqual(request.metadata.sourceApp, "Gemini")
+        XCTAssertEqual(request.metadata.userNote, "Find the logistic derivation later.")
+        XCTAssertTrue(request.metadata.analyzeImage)
+        let textCreationCount = await client.creationCount()
+        XCTAssertEqual(textCreationCount, 0)
+        XCTAssertNotNil(store.selectedCapture?.primaryImageAttachment)
+        XCTAssertEqual(store.selectedCapture?.selectedText, "")
+    }
+
+    func testImageAnalysisDefaultPersistsWhileDraftChoiceCanBeOverridden() async {
+        let suiteName = "RecallStoreTests.image-analysis.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = RecallStore(
+            client: RecordingAPIClient(),
+            clipboardService: ClipboardServiceStub(
+                result: .failure(ClipboardCaptureError.noText)
+            ),
+            imageAnalysisIsEnabled: false,
+            imageAnalysisPreferenceUserDefaults: defaults
+        )
+
+        store.imageAnalysisIsEnabled = true
+
+        XCTAssertTrue(defaults.bool(forKey: RecallStore.imageAnalysisUserDefaultsKey))
+        store.screenshotImageAnalysisIsEnabled = false
+        XCTAssertTrue(store.imageAnalysisIsEnabled)
+        XCTAssertTrue(defaults.bool(forKey: RecallStore.imageAnalysisUserDefaultsKey))
+    }
+
+    func testImageAnalysisDraftOverrideIsSentWithoutChangingFutureDefault() async throws {
+        let client = RecordingAPIClient(createStatus: .ready)
+        let store = RecallStore(
+            client: client,
+            clipboardService: ClipboardServiceStub(
+                result: .failure(ClipboardCaptureError.noText)
+            ),
+            imageAnalysisIsEnabled: true,
+            screenshotCaptureService: ScreenshotServiceStub(
+                result: .success(
+                    ScreenshotSnapshot(
+                        imageData: Data([7, 8, 9]),
+                        mediaType: "image/png",
+                        sourceApplication: "Preview"
+                    )
+                )
+            )
+        )
+
+        let prepared = await store.prepareScreenshotCapture()
+        XCTAssertTrue(prepared)
+        store.screenshotNoteKind = .image
+        store.screenshotImageAnalysisIsEnabled = false
+        let saved = await store.submitQuickCapture()
+        XCTAssertTrue(saved)
+
+        let requests = await client.allImageCreateRequests()
+        let request = try XCTUnwrap(requests.first)
+        XCTAssertFalse(request.metadata.analyzeImage)
+        XCTAssertTrue(store.imageAnalysisIsEnabled)
+    }
+
+    func testImageAnalysisMasterSwitchBlocksDraftOverrideAndUploadFlag() async throws {
+        let client = RecordingAPIClient(createStatus: .ready)
+        let store = RecallStore(
+            client: client,
+            clipboardService: ClipboardServiceStub(
+                result: .failure(ClipboardCaptureError.noText)
+            ),
+            imageAnalysisIsEnabled: false,
+            screenshotCaptureService: ScreenshotServiceStub(
+                result: .success(
+                    ScreenshotSnapshot(
+                        imageData: Data([4, 5, 6]),
+                        mediaType: "image/png",
+                        sourceApplication: "Preview"
+                    )
+                )
+            )
+        )
+
+        let prepared = await store.prepareScreenshotCapture()
+        XCTAssertTrue(prepared)
+        store.screenshotNoteKind = .image
+        store.screenshotImageAnalysisIsEnabled = true
+        XCTAssertFalse(store.screenshotImageAnalysisWillRun)
+
+        let saved = await store.submitQuickCapture()
+        XCTAssertTrue(saved)
+        let requests = await client.allImageCreateRequests()
+        let request = try XCTUnwrap(requests.first)
+        XCTAssertFalse(request.metadata.analyzeImage)
+
+        store.imageAnalysisIsEnabled = true
+        XCTAssertTrue(store.screenshotImageAnalysisIsEnabled)
+        XCTAssertTrue(store.screenshotImageAnalysisWillRun)
+        store.imageAnalysisIsEnabled = false
+        XCTAssertFalse(store.screenshotImageAnalysisIsEnabled)
+        XCTAssertFalse(store.screenshotImageAnalysisWillRun)
+    }
+
+    func testAttachmentImageLoadsOnceAndDeleteRemovesTheMemory() async throws {
+        let client = RecordingAPIClient(createStatus: .ready)
+        let store = RecallStore(
+            client: client,
+            clipboardService: ClipboardServiceStub(
+                result: .failure(ClipboardCaptureError.noText)
+            ),
+            screenshotCaptureService: ScreenshotServiceStub(
+                result: .success(
+                    ScreenshotSnapshot(
+                        imageData: Data([4, 5, 6]),
+                        mediaType: "image/png",
+                        sourceApplication: "Preview"
+                    )
+                )
+            )
+        )
+        let prepared = await store.prepareScreenshotCapture()
+        XCTAssertTrue(prepared)
+        store.screenshotNoteKind = .image
+        let saved = await store.submitQuickCapture()
+        XCTAssertTrue(saved)
+        let capture = try XCTUnwrap(store.selectedCapture)
+        let attachment = try XCTUnwrap(capture.primaryImageAttachment)
+
+        await store.loadAttachmentImage(attachment)
+        XCTAssertEqual(store.attachmentImageData[attachment.id], Data([9, 8, 7]))
+        let deleted = await store.deleteCapture(id: capture.id)
+        XCTAssertTrue(deleted)
+
+        let deletedIDs = await client.allDeletedCaptureIDs()
+        XCTAssertEqual(deletedIDs, [capture.id])
+        XCTAssertNil(store.selectedCapture)
+        XCTAssertNil(store.attachmentImageData[attachment.id])
+    }
+
     func testClosingDuringAmbiguousSavePreservesRetryAndBlocksANewDraft() async throws {
         let client = RecordingAPIClient(
             failFirstCreate: true,
@@ -1554,6 +1724,8 @@ private struct LocalExtractorStub: LocalScreenshotTextExtracting {
 
 private actor RecordingAPIClient: RecallAPIClient {
     private var createRequests: [CaptureCreateRequest] = []
+    private var imageCreateRequests: [ImageCaptureUploadRequest] = []
+    private var deletedCaptureIDs: [String] = []
     private var searchQueries: [String] = []
     private var detailRequests = 0
     private var listRequests = 0
@@ -1615,6 +1787,14 @@ private actor RecordingAPIClient: RecallAPIClient {
         createRequests
     }
 
+    func allImageCreateRequests() -> [ImageCaptureUploadRequest] {
+        imageCreateRequests
+    }
+
+    func allDeletedCaptureIDs() -> [String] {
+        deletedCaptureIDs
+    }
+
     func searchCount() -> Int {
         searchQueries.count
     }
@@ -1651,6 +1831,18 @@ private actor RecordingAPIClient: RecallAPIClient {
         return capture(from: request, status: createStatus)
     }
 
+    func createImageCapture(_ request: ImageCaptureUploadRequest) async throws -> Capture {
+        imageCreateRequests.append(request)
+        if createDelayNanoseconds > 0 {
+            try await Task.sleep(nanoseconds: createDelayNanoseconds)
+        }
+        if shouldFailNextCreate {
+            shouldFailNextCreate = false
+            throw URLError(.timedOut)
+        }
+        return imageCapture(from: request, status: createStatus)
+    }
+
     func listCaptures(limit: Int, offset: Int) async throws -> CaptureListEnvelope {
         listRequests += 1
         if let listFailure {
@@ -1671,6 +1863,10 @@ private actor RecordingAPIClient: RecallAPIClient {
         if let pollStatus,
            let request = createRequests.last {
             return capture(from: request, status: pollStatus)
+        }
+        if let pollStatus,
+           let request = imageCreateRequests.last {
+            return imageCapture(from: request, status: pollStatus)
         }
         throw RecallAPIError.http(
             statusCode: 404,
@@ -1696,6 +1892,14 @@ private actor RecordingAPIClient: RecallAPIClient {
             code: "capture_not_found",
             message: "Capture was not found."
         )
+    }
+
+    func attachmentData(contentPath: String) async throws -> Data {
+        Data([9, 8, 7])
+    }
+
+    func deleteCapture(id: String) async throws {
+        deletedCaptureIDs.append(id)
     }
 
     func extractScreenshotText(_ request: ScreenshotOCRRequest) async throws -> ScreenshotOCRResponse {
@@ -1742,6 +1946,53 @@ private actor RecordingAPIClient: RecallAPIClient {
             searchAliases: [],
             errorMessage: nil,
             enrichmentVersion: 1
+        )
+    }
+
+    private func imageCapture(
+        from request: ImageCaptureUploadRequest,
+        status: CaptureStatus
+    ) -> Capture {
+        let timestamp = "2026-07-21T17:30:00.123456Z"
+        let attachmentID = "4cfe5742-43e0-4bf4-9f79-bec7ef9954c2"
+        return Capture(
+            id: "4b3a30b7-55d9-4ef8-93ef-34281c826e52",
+            clientCaptureID: request.metadata.clientCaptureID,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            capturedAt: request.metadata.capturedAt,
+            status: status,
+            sourceType: .screenshot,
+            sourceApp: request.metadata.sourceApp,
+            sourceTitle: nil,
+            sourceURL: nil,
+            selectedText: "",
+            surroundingContext: nil,
+            contextTruncated: false,
+            userNote: request.metadata.userNote,
+            aiTitle: nil,
+            aiSummary: nil,
+            problem: nil,
+            keyInsight: nil,
+            whySaved: nil,
+            caveats: [],
+            tags: [],
+            entities: [],
+            searchAliases: [],
+            errorMessage: nil,
+            enrichmentVersion: 1,
+            attachments: [
+                CaptureAttachment(
+                    id: attachmentID,
+                    kind: "image",
+                    mediaType: request.mediaType,
+                    byteSize: request.imageData.count,
+                    pixelWidth: 10,
+                    pixelHeight: 8,
+                    sha256: String(repeating: "a", count: 64),
+                    contentPath: "/v1/attachments/\(attachmentID)/content"
+                )
+            ]
         )
     }
 }

@@ -3,14 +3,41 @@ import Foundation
 protocol RecallAPIClient: Sendable {
     func health() async throws -> HealthResponse
     func createCapture(_ request: CaptureCreateRequest) async throws -> Capture
+    func createImageCapture(_ request: ImageCaptureUploadRequest) async throws -> Capture
     func listCaptures(limit: Int, offset: Int) async throws -> CaptureListEnvelope
     func getCapture(id: String) async throws -> Capture
+    func attachmentData(contentPath: String) async throws -> Data
+    func deleteCapture(id: String) async throws
     func search(query: String, limit: Int) async throws -> SearchResponse
     func enrich(id: String) async throws -> Capture
     func extractScreenshotText(_ request: ScreenshotOCRRequest) async throws -> ScreenshotOCRResponse
 }
 
 extension RecallAPIClient {
+    func createImageCapture(_ request: ImageCaptureUploadRequest) async throws -> Capture {
+        throw RecallAPIError.http(
+            statusCode: 501,
+            code: "image_capture_unavailable",
+            message: "Image capture is not available in this client."
+        )
+    }
+
+    func attachmentData(contentPath: String) async throws -> Data {
+        throw RecallAPIError.http(
+            statusCode: 501,
+            code: "attachment_content_unavailable",
+            message: "Image attachment content is not available in this client."
+        )
+    }
+
+    func deleteCapture(id: String) async throws {
+        throw RecallAPIError.http(
+            statusCode: 501,
+            code: "capture_delete_unavailable",
+            message: "Capture deletion is not available in this client."
+        )
+    }
+
     func listCaptures() async throws -> CaptureListEnvelope {
         try await listCaptures(limit: 50, offset: 0)
     }
@@ -45,6 +72,20 @@ struct LiveRecallAPIClient: RecallAPIClient, Sendable {
         )
     }
 
+    func createImageCapture(_ request: ImageCaptureUploadRequest) async throws -> Capture {
+        let boundary = "RecallBoundary-\(UUID().uuidString)"
+        let body = try multipartBody(for: request, boundary: boundary)
+        return try await send(
+            path: ["v1", "image-captures"],
+            method: "POST",
+            queryItems: [],
+            bodyData: body,
+            contentType: "multipart/form-data; boundary=\(boundary)",
+            expectedStatusCodes: [202],
+            timeoutInterval: 30
+        )
+    }
+
     func listCaptures(limit: Int, offset: Int) async throws -> CaptureListEnvelope {
         try await send(
             path: ["v1", "captures"],
@@ -60,6 +101,40 @@ struct LiveRecallAPIClient: RecallAPIClient, Sendable {
         try await send(
             path: ["v1", "captures", id],
             expectedStatusCodes: [200]
+        )
+    }
+
+    func attachmentData(contentPath: String) async throws -> Data {
+        let components = contentPath.split(separator: "/").map(String.init)
+        guard components.count == 4,
+              components[0] == "v1",
+              components[1] == "attachments",
+              UUID(uuidString: components[2]) != nil,
+              components[3] == "content" else {
+            throw RecallAPIError.invalidResponse
+        }
+        return try await performRequest(
+            path: components,
+            method: "GET",
+            queryItems: [],
+            bodyData: nil,
+            contentType: nil,
+            accept: "image/png, image/jpeg",
+            expectedStatusCodes: [200],
+            timeoutInterval: 30
+        )
+    }
+
+    func deleteCapture(id: String) async throws {
+        _ = try await performRequest(
+            path: ["v1", "captures", id],
+            method: "DELETE",
+            queryItems: [],
+            bodyData: nil,
+            contentType: nil,
+            accept: "application/json",
+            expectedStatusCodes: [204],
+            timeoutInterval: 15
         )
     }
 
@@ -104,6 +179,7 @@ struct LiveRecallAPIClient: RecallAPIClient, Sendable {
             method: method,
             queryItems: queryItems,
             bodyData: nil,
+            contentType: nil,
             expectedStatusCodes: expectedStatusCodes,
             timeoutInterval: timeoutInterval
         )
@@ -124,6 +200,7 @@ struct LiveRecallAPIClient: RecallAPIClient, Sendable {
             method: method,
             queryItems: queryItems,
             bodyData: data,
+            contentType: "application/json",
             expectedStatusCodes: expectedStatusCodes,
             timeoutInterval: timeoutInterval
         )
@@ -134,9 +211,37 @@ struct LiveRecallAPIClient: RecallAPIClient, Sendable {
         method: String,
         queryItems: [URLQueryItem],
         bodyData: Data?,
+        contentType: String?,
         expectedStatusCodes: Set<Int>,
         timeoutInterval: TimeInterval
     ) async throws -> Response {
+        let data = try await performRequest(
+            path: path,
+            method: method,
+            queryItems: queryItems,
+            bodyData: bodyData,
+            contentType: contentType,
+            accept: "application/json",
+            expectedStatusCodes: expectedStatusCodes,
+            timeoutInterval: timeoutInterval
+        )
+        do {
+            return try JSONDecoder().decode(Response.self, from: data)
+        } catch {
+            throw RecallAPIError.decoding(error.localizedDescription)
+        }
+    }
+
+    private func performRequest(
+        path: [String],
+        method: String,
+        queryItems: [URLQueryItem],
+        bodyData: Data?,
+        contentType: String?,
+        accept: String,
+        expectedStatusCodes: Set<Int>,
+        timeoutInterval: TimeInterval
+    ) async throws -> Data {
         var url = baseURL
         for component in path {
             url.appendPathComponent(component)
@@ -156,9 +261,9 @@ struct LiveRecallAPIClient: RecallAPIClient, Sendable {
         request.httpMethod = method
         request.httpBody = bodyData
         request.timeoutInterval = timeoutInterval
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if bodyData != nil {
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(accept, forHTTPHeaderField: "Accept")
+        if let contentType {
+            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
 
         let (data, response) = try await session.data(for: request)
@@ -166,9 +271,8 @@ struct LiveRecallAPIClient: RecallAPIClient, Sendable {
             throw RecallAPIError.invalidResponse
         }
 
-        let decoder = JSONDecoder()
         guard expectedStatusCodes.contains(httpResponse.statusCode) else {
-            let envelope = try? decoder.decode(APIErrorEnvelope.self, from: data)
+            let envelope = try? JSONDecoder().decode(APIErrorEnvelope.self, from: data)
             let fallback = HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode)
             throw RecallAPIError.http(
                 statusCode: httpResponse.statusCode,
@@ -177,10 +281,31 @@ struct LiveRecallAPIClient: RecallAPIClient, Sendable {
             )
         }
 
-        do {
-            return try decoder.decode(Response.self, from: data)
-        } catch {
-            throw RecallAPIError.decoding(error.localizedDescription)
+        return data
+    }
+
+    private func multipartBody(
+        for request: ImageCaptureUploadRequest,
+        boundary: String
+    ) throws -> Data {
+        var body = Data()
+        func append(_ value: String) {
+            body.append(Data(value.utf8))
         }
+
+        let metadata = try JSONEncoder().encode(request.metadata)
+        append("--\(boundary)\r\n")
+        append("Content-Disposition: form-data; name=\"metadata\"\r\n")
+        append("Content-Type: application/json\r\n\r\n")
+        body.append(metadata)
+        append("\r\n")
+
+        let filename = request.mediaType == "image/jpeg" ? "capture.jpg" : "capture.png"
+        append("--\(boundary)\r\n")
+        append("Content-Disposition: form-data; name=\"image\"; filename=\"\(filename)\"\r\n")
+        append("Content-Type: \(request.mediaType)\r\n\r\n")
+        body.append(request.imageData)
+        append("\r\n--\(boundary)--\r\n")
+        return body
     }
 }

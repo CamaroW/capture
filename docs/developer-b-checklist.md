@@ -6,12 +6,14 @@ Project: Recall
 
 Last updated: 2026-07-21
 
-Current phase: Structured-text capture fidelity implemented; real-source
-acceptance pending
+Current phase: Structured-text fidelity and persisted image notes implemented;
+primary real-app acceptance complete and release regression work remains
 
-Implementation branch: `codex/text-capture-fidelity`
+Implementation branch: `codex/image-notes`
 
-Branch base: `e6206e0` (PR #13 merge commit)
+Merged prerequisite branch: `codex/text-capture-fidelity`
+
+Integration base: `667b045` (PR #14 merge commit)
 
 Canonical target: `main`
 
@@ -39,6 +41,14 @@ migration. The host macOS suite passes 108/108, and the user accepted the
 primary AX path. WeChat then exposed an expected unsupported-control gap;
 D-035 is implemented with a 149/149 host suite, and B-016 closed after final
 real-device acceptance on 2026-07-21.
+
+D-037 now adds one persisted screenshot image per Capture, an independent note,
+an off-by-default visual-analysis master switch, background OCR/visual enrichment
+through the existing searchable fields, library/detail rendering, and deletion
+of both metadata and the local file. The feature branch passes 235 backend and
+the integrated macOS suite passes 184 tests. The user verified real-app image
+notes with AI both disabled and enabled; visual-concept retrieval, restart,
+retry, and physical deletion remain explicit release-regression checks.
 
 D-036 now adds one conservative intake layer to explicit Clipboard Capture. It
 keeps plain characters authoritative and restores only richer line boundaries
@@ -100,6 +110,7 @@ Update protocol:
 | Addition | Native Accessibility selection | Implemented; primary path accepted | D-034 adds explicit `Option+Shift+Command+S`, fail-closed AX reading, anchored review, safe v1 shortcut migration, and 108/108 macOS tests; user acceptance passed on 2026-07-21 |
 | Addition | Clipboard selection compatibility | Complete and real-device accepted | D-035 adds an off-by-default transactional synthetic-Copy fallback with exact-control and application-scoped tickets; 149/149 host tests and B-016 user acceptance pass |
 | Addition | Structured-text capture fidelity | Implemented; live payload verified | D-036 adds a bounded plain/HTML/RTF resolver to explicit Clipboard Capture; the real Gemini payload restores verified boundaries from flattened plain text while retaining TeX |
+| Addition | Persisted image notes and visual indexing | Implemented; primary real-app flow accepted | D-037 adds one bounded local image, separate note, off-by-default AI master switch, existing-search reuse, rendering, retry, and deletion; 235 backend and 184 integrated macOS tests pass |
 
 The D-023 integration closes B-010, the macOS slice closes B-006, and real
 provider plus unpacked-Chrome evidence closes B-007, B-008, and B-009. B-011 is
@@ -107,7 +118,39 @@ resolved by the hardening work. Remaining work is the explicit Layer 8 backlog
 and Layer 10 submission/release material, not a missing shared P0 integration
 gate.
 
-## Active addition — screenshot text into notes
+## Active addition — persisted image notes and visual indexing
+
+Status: `[x]` D-037 automated implementation and real-app AI-disabled/AI-enabled
+image-note acceptance verified
+
+- [x] Preserve D-027 as the separate text-only screenshot choice; add an explicit
+  **Image note** choice rather than silently changing existing behavior.
+- [x] Save the original before analysis, keep the optional user note independent,
+  and return one opaque attachment descriptor in the complete Capture response.
+- [x] Add migration 004 with normalized attachment metadata and store immutable
+  PNG/JPEG bytes under `RECALL_ATTACHMENTS_PATH`, outside SQLite. Validate type,
+  signature, 8 MiB size, 20,000-pixel dimensions, 40-megapixel area, generated
+  paths, and containment.
+- [x] Keep visual analysis off by default with a persistent global master
+  switch. When off, disable the per-draft control and force local-only saving;
+  when on, default each new draft on while allowing a per-image opt-out.
+- [x] When enabled, perform one post-commit background multimodal Structured
+  Outputs request. Store OCR in `selected_text`, visual meaning in existing AI
+  fields, and reuse the established FTS/embedding pipeline.
+- [x] Show image thumbnails and full detail content, preserve retry behavior,
+  and expose confirmed deletion that removes Capture state plus the referenced
+  local file.
+- [x] Verify invalid images, idempotent retries, provider-off preservation,
+  provider-on OCR/visual search, attachment reads, deletion, migration, health,
+  networking, preference persistence, upload retry, image loading, and old-
+  backend decoding. Evidence: 235/235 backend and 184/184 integrated macOS tests.
+- [x] In the real app, verify image notes save successfully with AI disabled and
+  enabled, and that the enabled path produces visible AI interpretation.
+- [ ] During release regression, verify visual-concept retrieval absent from OCR,
+  restart persistence, full-resolution detail display, retry, and deletion from
+  both the library and attachment directory.
+
+## Historical addition — screenshot text into notes
 
 Status: `[x]` implementation plus automated and manual hardening verified under
 D-027; the reviewed change is recorded in PR #5
@@ -2480,3 +2523,58 @@ resolved errors.
   described as freshly rerun.
 - Project impact: The Chrome improvement is verified automatically. A real
   unpacked-extension shortcut/auto-close check remains explicit above.
+
+## E-044 — Image-note verification commands used two invalid test invocations
+
+- Date: 2026-07-21
+- Status: Resolved
+- Symptom: The first combined regression used a backend-relative virtualenv
+  path from inside the backend directory and relied on an `npm` executable not
+  exposed in the review shell. A later new Swift test also placed `await`
+  directly inside an XCTest autoclosure, so that macOS test build stopped before
+  execution.
+- Resolution: Used the backend-local `.venv/bin/python`, loaded the bundled Node
+  runtime and ran the extension suite directly, then assigned both async Swift
+  results before asserting them. Final evidence is 235/235 backend, 44/44
+  stress, 68/68 Chrome, and 157/157 macOS tests.
+- Project impact: Verification harness only; no production-code assertion or
+  product behavior failed.
+
+## E-060 — Image attachment responses introduced an N+1 search query
+
+- Date: 2026-07-21
+- Status: Resolved
+- Symptom: The image-notes pull request passed all functional checks, but the
+  Linux stress runner recorded 50/50 successful concurrent vector searches with
+  a maximum latency of 2039.688 ms, narrowly exceeding the 2-second guard.
+- Cause: Every Capture serialized by collection and search endpoints loaded its
+  attachment metadata with a separate SQLite query. A 100-result search therefore
+  performed 100 avoidable attachment queries in addition to search itself.
+- Resolution: Added one bounded attachment query for the complete result set and
+  passed the grouped metadata into response serialization. A regression test now
+  rejects per-Capture attachment reads from library and search responses while
+  verifying image metadata remains present.
+- Project impact: No result or attachment was lost, but this removed a real
+  performance regression instead of weakening the existing stress threshold.
+
+## E-061 — Merge CI exceeded the bounded SQLite write-lock wait
+
+- Date: 2026-07-21
+- Status: Resolved
+- Symptom: The PR #14 merge run returned HTTP 500 for 19 of 700 concurrent
+  writes, and the integrated PR #15 run returned 500 for 14 of 500 writes. The
+  databases remained internally consistent but contained only the accepted
+  rows. A separate dashboard test read `current_branch` as `unknown`.
+- Cause: SQLite permits one writer at a time. On the slower shared runner, some
+  requests waited longer than the configured five seconds for the write lock.
+  The dashboard failure came from renaming its recognized `Implementation
+  branch` metadata field while resolving documentation conflicts.
+- Resolution: Increased the bounded SQLite busy wait to 30 seconds, added a
+  regression assertion for the effective 30,000 ms connection setting, and
+  restored the recognized checklist field. The complete backend suite passes
+  235/235 and all 44 stress scenarios pass, including 1,000 synchronized
+  Capture/FTS rows under the same 64- and 32-worker bursts.
+- Project impact: A write that previously lost a short lock race and returned a
+  safe 500 can now remain queued during an exceptional local burst. Normal
+  requests proceed as soon as the lock is released; a genuinely stuck lock is
+  still bounded and fails after 30 seconds rather than waiting indefinitely.

@@ -1,4 +1,58 @@
+import AppKit
 import SwiftUI
+
+struct AttachmentImageView: View {
+    enum Style {
+        case thumbnail
+        case detail
+    }
+
+    @EnvironmentObject private var store: RecallStore
+    let attachment: CaptureAttachment
+    let style: Style
+
+    var body: some View {
+        Group {
+            if let data = store.attachmentImageData[attachment.id],
+               let image = NSImage(data: data) {
+                switch style {
+                case .thumbnail:
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 72, height: 56)
+                        .clipped()
+                case .detail:
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity, maxHeight: 560)
+                }
+            } else {
+                ZStack {
+                    Color.primary.opacity(0.045)
+                    Image(systemName: "photo")
+                        .font(style == .thumbnail ? .title3 : .largeTitle)
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(
+                    width: style == .thumbnail ? 72 : nil,
+                    height: style == .thumbnail ? 56 : 220
+                )
+            }
+        }
+        .background(.black.opacity(0.035))
+        .clipShape(RoundedRectangle(cornerRadius: style == .thumbnail ? 9 : 13))
+        .overlay {
+            RoundedRectangle(cornerRadius: style == .thumbnail ? 9 : 13)
+                .stroke(.primary.opacity(0.07), lineWidth: 1)
+        }
+        .task(id: attachment.id) {
+            await store.loadAttachmentImage(attachment)
+        }
+        .accessibilityLabel("Saved image attachment")
+    }
+}
 
 struct CaptureStatusBadge: View {
     let status: CaptureStatus
@@ -84,7 +138,7 @@ struct BackendConnectionPill: View {
                 ? "Local service connected; AI is configured"
                 : "Local service connected; AI is not configured"
         case .degraded:
-            "The local Recall service is running, but its database is unavailable"
+            "The local Recall service is running, but its database or attachment storage is unavailable"
         case .disconnected:
             "The local Recall service is not available"
         }

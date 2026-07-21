@@ -1,0 +1,63 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "extracted_text": {
+      "type": "string",
+      "maxLength": 12000,
+      "description": "Visible text transcribed in useful reading order. Empty only when the image has no readable text."
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "problem": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "key_insight": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "why_saved": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "caveats": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {"type": "string", "maxLength": 300}
+    },
+    "tags": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {"type": "string", "maxLength": 300}
+    },
+    "entities": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {"type": "string", "maxLength": 300}
+    },
+    "search_aliases": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {"type": "string", "maxLength": 300}
+    }
+  },
+  "required": [
+    "extracted_text",
+    "title",
+    "summary",
+    "problem",
+    "key_insight",
+    "why_saved",
+    "caveats",
+    "tags",
+    "entities",
+    "search_aliases"
+  ]
+}

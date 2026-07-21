@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 CaptureStatus = Literal["captured", "processing", "ready", "error"]
 SourceType = Literal["web", "clipboard", "screenshot"]
+AttachmentKind = Literal["image"]
 
 
 class StorageModel(BaseModel):
@@ -26,6 +27,23 @@ class NewCapture(StorageModel):
     surrounding_context: str | None = None
     context_truncated: bool = False
     user_note: str | None = None
+
+
+class NewAttachment(StorageModel):
+    id: str
+    kind: AttachmentKind = "image"
+    media_type: Literal["image/png", "image/jpeg"]
+    relative_path: str
+    byte_size: int
+    pixel_width: int
+    pixel_height: int
+    sha256: str
+    sort_order: int = 0
+
+
+class AttachmentRecord(NewAttachment):
+    capture_id: str
+    created_at: str
 
 
 class CaptureRecord(NewCapture):

@@ -3,8 +3,8 @@
 The backend is a local-only FastAPI service. It provides validated
 configuration, health, transactional SQLite persistence, Capture CRUD,
 Structured Output enrichment, FTS5, embeddings, and hybrid retrieval. It also
-provides the D-027 one-shot GPT screenshot text-extraction boundary; image bytes
-are validated in memory and never persisted by this service.
+provides the D-027 one-shot GPT screenshot text-extraction boundary and D-037
+persisted image notes with optional background visual indexing.
 
 Run all commands below from `services/backend/`.
 
@@ -58,11 +58,12 @@ curl --fail --silent http://127.0.0.1:8765/health
 Without an API key, the expected response is:
 
 ```json
-{"status":"ok","database":"ok","openai_configured":false}
+{"status":"ok","database":"ok","attachments":"ok","openai_configured":false}
 ```
 
-The health probe creates the configured SQLite file if needed and checks it
-with `SELECT 1` and verifies that every known migration is applied.
+The health probe creates the configured SQLite file and attachment directory if
+needed, verifies every migration, checks SQLite integrity/decodability, and
+requires the attachment directory to be readable and writable.
 
 ## Live build checklist
 
@@ -82,6 +83,14 @@ backfills records created by older builds.
 Migration 003 transactionally expands `source_type` with `screenshot`, preserves
 every existing Capture column, and rebuilds/backfills the same FTS table and
 triggers. It does not add an image/blob column.
+
+Migration 004 adds normalized `capture_attachments` metadata with a cascading
+foreign key. Original PNG/JPEG bytes remain filesystem files under
+`RECALL_ATTACHMENTS_PATH`; they are not SQLite blobs. Back up the database and
+attachment directory together while the backend is stopped. Older code that
+knows only migrations 001–003 will reject a database after migration 004, so a
+rollback requires restoring both the pre-004 database and matching attachment
+snapshot rather than checking out old code alone.
 
 Migration 003 is forward-only for this build: older code knows only migrations
 001–002 and will refuse a database that has applied 003. Before the first run of
@@ -148,6 +157,28 @@ the on-device choice. The route does not create a Capture or store the image;
 after the user reviews the source text, the macOS client submits it separately
 from any optional personal note through the ordinary `POST /v1/captures` flow.
 
+## Persisted image notes
+
+`POST /v1/image-captures` receives one multipart PNG/JPEG plus JSON metadata.
+The backend validates signature, media type, byte/dimension/pixel limits, writes
+the original under an application-generated UUID path, and commits one linked
+Capture. V1 stores at most one attachment per Capture. Retrying the same
+`client_capture_id` returns the first Capture and removes the unused retry file.
+
+`analyze_image: false` produces a local `ready` image note without sending the
+image to OpenAI. With explicit opt-in, `analyze_image: true` persists first and
+then uses one background multimodal Structured Outputs request. OCR fills the
+ordinary `selected_text`; visual title, summary, entities, tags, caveats, and
+aliases fill the established AI fields and feed the existing FTS/embedding
+pipeline. The request sets `store: false`; provider data policies still apply.
+Provider failure preserves the original and user note in a retryable `error`
+record.
+
+Clients fetch bytes from the opaque `content_path` returned in `attachments`.
+`DELETE /v1/captures/{id}` removes Capture/FTS/embedding/attachment metadata and
+then its referenced local files. Filesystem paths are never accepted from or
+returned to clients.
+
 ## AI enrichment
 
 Layer 4 starts one in-process enrichment task after a Capture is committed.
@@ -202,7 +233,7 @@ RECALL_CORS_ORIGINS=chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 For a local browser harness, loopback origins such as
 `http://127.0.0.1:3000` are also accepted. CORS permits only `GET`, `POST`, and
-the `Content-Type` header, without credentials.
+`DELETE` plus the `Content-Type` header, without credentials.
 
 ## Embeddings and hybrid search
 
@@ -275,5 +306,6 @@ checkpoints.
 | `RECALL_HOST` | `127.0.0.1` | Loopback-only bind host |
 | `RECALL_PORT` | `8765` | Backend port, from 1 through 65535 |
 | `RECALL_DATABASE_PATH` | `./data/recall.db` | SQLite file, relative to repository root |
+| `RECALL_ATTACHMENTS_PATH` | database sibling `attachments/` | Application-owned original image directory; must not contain or be contained by the database path |
 | `RECALL_LOG_LEVEL` | `INFO` | Python logging level |
 | `RECALL_CORS_ORIGINS` | unset | Comma-separated exact origins allowed for the Chrome client |

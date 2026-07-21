@@ -15,8 +15,8 @@ split; they are no longer assignment gates.
 - `main` is the canonical runnable integration tree.
 - The baseline macOS, Chrome, backend, persistence, enrichment, keyword search,
   semantic retrieval, and lifecycle flows are integrated.
-- D-027 screenshot-to-note OCR is implemented and live-verified with GPT and
-  Apple Vision. Screenshot bytes remain transient and are not stored.
+- D-027 screenshot-to-text OCR is implemented and live-verified with GPT and
+  Apple Vision. Its **Text note** screenshot bytes remain transient.
 - D-028 CI runs backend, deterministic stress, Chrome-extension, and macOS jobs
   plus one aggregate **Required checks** result.
 - D-029 opt-in inline selected-text capture passed its real unpacked-Chrome
@@ -50,6 +50,11 @@ split; they are no longer assignment gates.
   clipboard payload restores verified HTML block boundaries from zero-newline
   plain text while retaining its TeX. The host suite passes 176/176, and
   Selection Capture remains at D-034/D-035.
+- D-037 implements one-image notes: local original storage, an independent user
+  note, background OCR/visual indexing within a global privacy master switch,
+  ordinary search reuse, image display, and whole-Capture deletion. The user
+  verified real-app image notes with AI both disabled and enabled; automated
+  backend/macOS verification and file-deletion coverage pass.
 - The macOS app and Chrome extension are separate clients of the loopback
   FastAPI service. The app does not yet package or start that service.
 
@@ -129,12 +134,20 @@ not approval from a particular historical developer role.
    HTML/RTF clipboard representations in explicit Clipboard Capture. Do not
    change Selection Capture or storage until a later design proves that source
    markup is necessary.
-6. **App-managed local service lifecycle.** Define how a packaged Recall app
+6. **Image attachments — implemented and primary flow accepted.** D-037 adds a
+   normalized attachment table and application-owned file storage rather than
+   SQLite blobs. A screenshot draft chooses **Text note** or **Image note**; the
+   latter saves one bounded PNG/JPEG plus an independent note. AI analysis has
+   a persistent off-by-default master switch and a per-image opt-out. Background
+   analysis writes
+   OCR and visual meaning into the existing searchable derived fields without
+   replacing the original. Library thumbnails, detail display, retry, and
+   deletion are integrated. AI-disabled and AI-enabled image saves passed
+   real-app acceptance. Keep visual-concept retrieval, restart, retry, and
+   physical file deletion in release regression coverage.
+7. **App-managed local service lifecycle.** Define how a packaged Recall app
    starts, monitors, and stops the backend without assuming a repository checkout
    or terminal command. Keep this separate from browser native messaging.
-7. **Image attachments.** Design explicit image persistence, limits, privacy,
-   deletion, migrations, and detail UI before allowing an imported image to be
-   saved as more than OCR-derived text.
 8. **Menu-bar image drop.** After image semantics are decided, add a bounded
    drop target. A click-open drop zone may precede a custom AppKit status item
    that opens when an image is dragged directly over the icon.
@@ -261,9 +274,9 @@ pipeline retained the original source and note.
   current foreground app, reject secure content, keep candidates in memory,
   debounce and deduplicate AX notifications, and use a non-activating pill;
   explicit Capture Selection remains the reliable fallback.
-- A future image-drop first slice may reuse transient OCR and save only derived
-  text. Persisting the image itself requires the separate attachment design
-  above.
+- Menu-bar image drop remains deferred until the signed D-037 screenshot-image
+  flow is accepted. It should reuse the same one-image contract instead of
+  inventing another persistence route.
 
 ## Documentation authority
 

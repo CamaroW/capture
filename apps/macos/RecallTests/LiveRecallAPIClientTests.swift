@@ -173,6 +173,104 @@ final class LiveRecallAPIClientTests: XCTestCase {
         XCTAssertNil(object["source_url"])
     }
 
+    func testCreateImageCaptureSendsMultipartImageAndMetadata() async throws {
+        let recorder = RequestRecorder()
+        let attachmentID = "4cfe5742-43e0-4bf4-9f79-bec7ef9954c2"
+        var captureObject = try ContractFixtures.readyCaptureJSONObject()
+        captureObject["status"] = "processing"
+        captureObject["source_type"] = "screenshot"
+        captureObject["selected_text"] = ""
+        captureObject["attachments"] = [[
+            "id": attachmentID,
+            "kind": "image",
+            "media_type": "image/png",
+            "byte_size": 4,
+            "pixel_width": 10,
+            "pixel_height": 8,
+            "sha256": String(repeating: "a", count: 64),
+            "content_path": "/v1/attachments/\(attachmentID)/content",
+        ]]
+        let responseData = try JSONSerialization.data(withJSONObject: captureObject)
+        URLProtocolStub.install { request in
+            recorder.record(request)
+            return try stubbedResponse(
+                for: request,
+                statusCode: 202,
+                data: responseData
+            )
+        }
+        let upload = ImageCaptureUploadRequest(
+            metadata: ImageCaptureCreateMetadata(
+                clientCaptureID: "ca1ad8ce-196d-48af-ad2f-b4a9b79f71f9",
+                sourceApp: "Preview",
+                userNote: "Search this diagram later.",
+                capturedAt: "2026-07-21T10:30:00-07:00",
+                analyzeImage: true
+            ),
+            imageData: Data([0, 1, 2, 255]),
+            mediaType: "image/png"
+        )
+
+        let capture = try await makeClient().createImageCapture(upload)
+
+        XCTAssertEqual(capture.primaryImageAttachment?.id, attachmentID)
+        let request = try XCTUnwrap(recorder.request)
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.url?.path, "/v1/image-captures")
+        let contentType = try XCTUnwrap(
+            request.value(forHTTPHeaderField: "Content-Type")
+        )
+        XCTAssertTrue(contentType.hasPrefix("multipart/form-data; boundary="))
+        let body = try requestBodyData(from: request)
+        XCTAssertNotNil(body.range(of: upload.imageData))
+        let bodyText = String(decoding: body, as: UTF8.self)
+        XCTAssertTrue(bodyText.contains("name=\"metadata\""))
+        XCTAssertTrue(bodyText.contains("name=\"image\"; filename=\"capture.png\""))
+        XCTAssertTrue(bodyText.contains("\"analyze_image\":true"))
+        XCTAssertTrue(bodyText.contains("Search this diagram later."))
+    }
+
+    func testAttachmentDownloadAndCaptureDeleteUseBoundedPaths() async throws {
+        let recorder = RequestRecorder()
+        let attachmentID = "4cfe5742-43e0-4bf4-9f79-bec7ef9954c2"
+        URLProtocolStub.install { request in
+            recorder.record(request)
+            return try stubbedResponse(
+                for: request,
+                statusCode: 200,
+                data: Data([9, 8, 7])
+            )
+        }
+
+        let data = try await makeClient().attachmentData(
+            contentPath: "/v1/attachments/\(attachmentID)/content"
+        )
+
+        XCTAssertEqual(data, Data([9, 8, 7]))
+        XCTAssertEqual(recorder.request?.httpMethod, "GET")
+        XCTAssertEqual(
+            recorder.request?.url?.path,
+            "/v1/attachments/\(attachmentID)/content"
+        )
+
+        URLProtocolStub.install { request in
+            recorder.record(request)
+            return try stubbedResponse(
+                for: request,
+                statusCode: 204,
+                data: Data()
+            )
+        }
+        try await makeClient().deleteCapture(
+            id: "4b3a30b7-55d9-4ef8-93ef-34281c826e52"
+        )
+        XCTAssertEqual(recorder.request?.httpMethod, "DELETE")
+        XCTAssertEqual(
+            recorder.request?.url?.path,
+            "/v1/captures/4b3a30b7-55d9-4ef8-93ef-34281c826e52"
+        )
+    }
+
     func testScreenshotOCRSendsBoundedJSONPostAndDecodesProviderMetadata() async throws {
         let recorder = RequestRecorder()
         URLProtocolStub.install { request in

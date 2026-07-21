@@ -6,6 +6,8 @@ struct CaptureDetailView: View {
     let capture: Capture
     private let surroundingContextPreview: SurroundingContextPreview?
     @State private var isSurroundingContextExpanded = false
+    @State private var showsDeleteConfirmation = false
+    @State private var isDeleting = false
 
     init(capture: Capture) {
         self.capture = capture
@@ -18,6 +20,12 @@ struct CaptureDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 hero
+
+                if let attachment = capture.primaryImageAttachment {
+                    RecallSection("Original image", icon: "photo") {
+                        AttachmentImageView(attachment: attachment, style: .detail)
+                    }
+                }
 
                 if let summary = capture.aiSummary?.nonEmptyTrimmed {
                     RecallSection("AI interpretation", icon: "sparkles") {
@@ -39,19 +47,24 @@ struct CaptureDetailView: View {
                     }
                 }
 
-                RecallSection(
-                    capture.sourceType == .screenshot
-                        ? "Extracted source text"
-                        : "Original selection",
-                    icon: capture.sourceType == .screenshot
-                        ? "text.viewfinder"
-                        : "quote.opening"
-                ) {
-                    Text(capture.selectedText.nonEmptyTrimmed ?? "No text was selected.")
-                        .font(.body)
-                        .lineSpacing(3)
-                        .textSelection(.enabled)
-                        .foregroundStyle(capture.selectedText.nonEmptyTrimmed == nil ? .secondary : .primary)
+                if capture.selectedText.nonEmptyTrimmed != nil
+                    || capture.primaryImageAttachment == nil {
+                    RecallSection(
+                        capture.primaryImageAttachment != nil
+                            ? "Text found in image"
+                            : capture.sourceType == .screenshot
+                                ? "Extracted source text"
+                                : "Original selection",
+                        icon: capture.sourceType == .screenshot
+                            ? "text.viewfinder"
+                            : "quote.opening"
+                    ) {
+                        Text(capture.selectedText.nonEmptyTrimmed ?? "No text was selected.")
+                            .font(.body)
+                            .lineSpacing(3)
+                            .textSelection(.enabled)
+                            .foregroundStyle(capture.selectedText.nonEmptyTrimmed == nil ? .secondary : .primary)
+                    }
                 }
 
                 if let surroundingContextPreview {
@@ -84,6 +97,34 @@ struct CaptureDetailView: View {
         }
         .background(Color(nsColor: .windowBackgroundColor).opacity(0.65))
         .navigationTitle(capture.displayTitle)
+        .toolbar {
+            Button(role: .destructive) {
+                showsDeleteConfirmation = true
+            } label: {
+                Label("Delete memory", systemImage: "trash")
+            }
+            .disabled(isDeleting)
+        }
+        .confirmationDialog(
+            "Delete this memory?",
+            isPresented: $showsDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Memory", role: .destructive) {
+                isDeleting = true
+                Task {
+                    _ = await store.deleteCapture(id: capture.id)
+                    isDeleting = false
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(
+                capture.primaryImageAttachment == nil
+                    ? "This removes the saved memory."
+                    : "This removes the saved memory, its image, and its AI index."
+            )
+        }
     }
 
     private func surroundingContextSection(
@@ -176,7 +217,11 @@ struct CaptureDetailView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Building a contextual memory…")
                         .font(.headline)
-                    Text("Your original selection and note are already saved.")
+                    Text(
+                        capture.primaryImageAttachment == nil
+                            ? "Your original selection and note are already saved."
+                            : "The original image and your note are already saved. OCR and visual indexing continue in the background."
+                    )
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
@@ -261,7 +306,11 @@ struct CaptureDetailView: View {
                 Text(capture.errorMessage?.nonEmptyTrimmed ?? "AI processing did not complete.")
                     .foregroundStyle(.red)
                     .textSelection(.enabled)
-                Text("The source and your note remain available and searchable.")
+                Text(
+                    capture.primaryImageAttachment == nil
+                        ? "The source and your note remain available and searchable."
+                        : "The original image and your note remain saved. Retry to rebuild its searchable AI index."
+                )
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Button("Retry AI", systemImage: "arrow.clockwise") {

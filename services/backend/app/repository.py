@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal, get_args
@@ -12,9 +12,11 @@ from uuid import uuid4
 
 from app.database import apply_migrations, database_connection
 from app.models import (
+    AttachmentRecord,
     CaptureRecord,
     CaptureStatus,
     EnrichmentUpdate,
+    NewAttachment,
     NewCapture,
 )
 from app.search import (
@@ -99,6 +101,22 @@ def _row_to_record(row: sqlite3.Row) -> CaptureRecord:
         embedding=embedding,
         error_message=row["error_message"],
         enrichment_version=row["enrichment_version"],
+    )
+
+
+def _row_to_attachment(row: sqlite3.Row) -> AttachmentRecord:
+    return AttachmentRecord(
+        id=row["id"],
+        capture_id=row["capture_id"],
+        created_at=row["created_at"],
+        kind=row["kind"],
+        media_type=row["media_type"],
+        relative_path=row["relative_path"],
+        byte_size=row["byte_size"],
+        pixel_width=row["pixel_width"],
+        pixel_height=row["pixel_height"],
+        sha256=row["sha256"],
+        sort_order=row["sort_order"],
     )
 
 
@@ -205,12 +223,187 @@ class CaptureRepository:
             raise RuntimeError("Capture insert completed without a readable row")
         return _row_to_record(row), created
 
+    def create_with_attachment(
+        self,
+        capture: NewCapture,
+        attachment: NewAttachment,
+        *,
+        status: CaptureStatus,
+    ) -> tuple[CaptureRecord, bool]:
+        """Create an image Capture and its metadata in one SQLite transaction."""
+
+        if status not in VALID_CAPTURE_STATUSES:
+            raise ValueError(f"Invalid Capture status: {status}")
+
+        capture_id = str(uuid4())
+        now = self._timestamp()
+        with database_connection(self.database_path) as connection:
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                row = None
+                created = True
+                if capture.client_capture_id is not None:
+                    row = connection.execute(
+                        """
+                        SELECT * FROM captures
+                        WHERE client_capture_id = ?
+                        ORDER BY created_at ASC
+                        LIMIT 1
+                        """,
+                        (capture.client_capture_id,),
+                    ).fetchone()
+                    created = row is None
+
+                if row is None:
+                    connection.execute(
+                        """
+                        INSERT INTO captures (
+                            id, client_capture_id, created_at, updated_at, captured_at,
+                            status, source_type, source_app, source_title, source_url,
+                            selected_text, surrounding_context, context_truncated,
+                            user_note
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            capture_id,
+                            capture.client_capture_id,
+                            now,
+                            now,
+                            capture.captured_at,
+                            status,
+                            capture.source_type,
+                            capture.source_app,
+                            capture.source_title,
+                            capture.source_url,
+                            capture.selected_text,
+                            capture.surrounding_context,
+                            int(capture.context_truncated),
+                            capture.user_note,
+                        ),
+                    )
+                    connection.execute(
+                        """
+                        INSERT INTO capture_attachments (
+                            id, capture_id, created_at, kind, media_type,
+                            relative_path, byte_size, pixel_width, pixel_height,
+                            sha256, sort_order
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            attachment.id,
+                            capture_id,
+                            now,
+                            attachment.kind,
+                            attachment.media_type,
+                            attachment.relative_path,
+                            attachment.byte_size,
+                            attachment.pixel_width,
+                            attachment.pixel_height,
+                            attachment.sha256,
+                            attachment.sort_order,
+                        ),
+                    )
+                    row = connection.execute(
+                        "SELECT * FROM captures WHERE id = ?", (capture_id,)
+                    ).fetchone()
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+
+        if row is None:  # pragma: no cover - guarded SQLite insert.
+            raise RuntimeError("Image Capture insert completed without a readable row")
+        return _row_to_record(row), created
+
     def get(self, capture_id: str) -> CaptureRecord | None:
         with database_connection(self.database_path) as connection:
             row = connection.execute(
                 "SELECT * FROM captures WHERE id = ?", (capture_id,)
             ).fetchone()
         return None if row is None else _row_to_record(row)
+
+    def list_attachments(self, capture_id: str) -> list[AttachmentRecord]:
+        with database_connection(self.database_path) as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM capture_attachments
+                WHERE capture_id = ?
+                ORDER BY sort_order ASC, created_at ASC
+                """,
+                (capture_id,),
+            ).fetchall()
+        return [_row_to_attachment(row) for row in rows]
+
+    def list_attachments_for_captures(
+        self,
+        capture_ids: Iterable[str],
+    ) -> dict[str, list[AttachmentRecord]]:
+        """Load attachments for a response page without one query per Capture."""
+
+        unique_ids = list(dict.fromkeys(capture_ids))
+        attachments_by_capture = {capture_id: [] for capture_id in unique_ids}
+        if not unique_ids:
+            return attachments_by_capture
+
+        placeholders = ", ".join("?" for _ in unique_ids)
+        with database_connection(self.database_path) as connection:
+            rows = connection.execute(
+                f"""
+                SELECT * FROM capture_attachments
+                WHERE capture_id IN ({placeholders})
+                ORDER BY capture_id ASC, sort_order ASC, created_at ASC
+                """,
+                unique_ids,
+            ).fetchall()
+
+        for row in rows:
+            attachment = _row_to_attachment(row)
+            attachments_by_capture[attachment.capture_id].append(attachment)
+        return attachments_by_capture
+
+    def get_attachment(self, attachment_id: str) -> AttachmentRecord | None:
+        with database_connection(self.database_path) as connection:
+            row = connection.execute(
+                "SELECT * FROM capture_attachments WHERE id = ?",
+                (attachment_id,),
+            ).fetchone()
+        return None if row is None else _row_to_attachment(row)
+
+    def attachment_paths(self) -> set[str]:
+        with database_connection(self.database_path) as connection:
+            rows = connection.execute(
+                "SELECT relative_path FROM capture_attachments"
+            ).fetchall()
+        return {str(row["relative_path"]) for row in rows}
+
+    def delete(self, capture_id: str) -> list[str] | None:
+        """Delete a Capture transactionally and return files to remove."""
+
+        with database_connection(self.database_path) as connection:
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                exists = connection.execute(
+                    "SELECT 1 FROM captures WHERE id = ?", (capture_id,)
+                ).fetchone()
+                if exists is None:
+                    connection.rollback()
+                    return None
+                paths = [
+                    str(row["relative_path"])
+                    for row in connection.execute(
+                        """
+                        SELECT relative_path FROM capture_attachments
+                        WHERE capture_id = ?
+                        """,
+                        (capture_id,),
+                    ).fetchall()
+                ]
+                connection.execute("DELETE FROM captures WHERE id = ?", (capture_id,))
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+        return paths
 
     def list_captures(self, *, limit: int, offset: int) -> list[CaptureRecord]:
         with database_connection(self.database_path) as connection:
@@ -455,4 +648,62 @@ class CaptureRepository:
 
         if row is None:  # pragma: no cover - the guarded update returned one row.
             raise RuntimeError("Capture update completed without a readable row")
+        return _row_to_record(row)
+
+    def update_image_enrichment(
+        self,
+        capture_id: str,
+        *,
+        extracted_text: str,
+        update: EnrichmentUpdate,
+    ) -> CaptureRecord:
+        """Store OCR text and visual enrichment as one searchable revision."""
+
+        updated_at = self._timestamp()
+        values = (
+            extracted_text,
+            update.status,
+            updated_at,
+            update.ai_title,
+            update.ai_summary,
+            update.problem,
+            update.key_insight,
+            update.why_saved,
+            _encode_json(update.caveats),
+            _encode_json(update.tags),
+            _encode_json(update.entities),
+            _encode_json(update.search_aliases),
+            _encode_json(update.embedding),
+            update.error_message,
+            update.enrichment_version,
+            capture_id,
+        )
+
+        with database_connection(self.database_path) as connection:
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                cursor = connection.execute(
+                    """
+                    UPDATE captures SET
+                        selected_text = ?, status = ?, updated_at = ?,
+                        ai_title = ?, ai_summary = ?, problem = ?,
+                        key_insight = ?, why_saved = ?, caveats_json = ?,
+                        tags_json = ?, entities_json = ?, search_aliases_json = ?,
+                        embedding_json = ?, error_message = ?, enrichment_version = ?
+                    WHERE id = ?
+                    """,
+                    values,
+                )
+                if cursor.rowcount != 1:
+                    raise CaptureNotFoundError(capture_id)
+                row = connection.execute(
+                    "SELECT * FROM captures WHERE id = ?", (capture_id,)
+                ).fetchone()
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+
+        if row is None:  # pragma: no cover - guarded update.
+            raise RuntimeError("Image enrichment completed without a readable row")
         return _row_to_record(row)
