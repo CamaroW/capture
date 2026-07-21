@@ -255,7 +255,15 @@ test("popup preserves toolbar capture while exposing opt-in inline access", asyn
   assert.match(popupSource, /window\.close\(\)/);
   assert.match(popupSource, /characters?" : "characters/);
   assert.match(popupSource, /Note: \$\{characterCount\.toLocaleString\(\)\}/);
-  assert.match(popupStyles, /body \{[\s\S]*width: 344px;/);
-  assert.match(popupStyles, /\.popup-shell \{[\s\S]*max-height: min\(560px, 100vh\);/);
-  assert.match(popupStyles, /\.popup-shell \{[\s\S]*overflow-y: auto;/);
+  assert.match(popupStyles, /:root \{[^}]*width: 344px;/);
+  assert.match(popupStyles, /:root \{[^}]*height: 510px;/);
+  assert.match(popupStyles, /body \{[^}]*width: 100%;/);
+  assert.match(popupStyles, /body \{[^}]*height: 100%;/);
+  assert.match(popupStyles, /\.popup-shell \{[^}]*height: 100%;/);
+  assert.match(popupStyles, /\.popup-shell \{[^}]*overflow-y: auto;/);
+  assert.doesNotMatch(
+    popupStyles,
+    /(?:width|height|min-height|max-height):[^;]*(?:vh|dvh|svh|lvh)/,
+    "an auto-sized extension popup cannot bootstrap its dimensions from its own viewport",
+  );
 });

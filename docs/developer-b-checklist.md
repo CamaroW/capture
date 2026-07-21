@@ -6,11 +6,12 @@ Project: Recall
 
 Last updated: 2026-07-21
 
-Current phase: B-014 closed; native Accessibility selection next
+Current phase: Chrome action popup sizing correction complete; native
+Accessibility selection next
 
-Implementation branch: `codex/stable-screen-recording-permission`
+Implementation branch: `codex/fix-chrome-popup-sizing`
 
-Branch base: `0ab687b` (PR #10 merge commit)
+Branch base: `b028e83` (PR #11 merge commit)
 
 Canonical target: `main`
 
@@ -27,7 +28,9 @@ tests, and is live-verified across app-specific TCC reset, authorization,
 same-signer rebuild, selector launch, and cancellation. B-014 is also closed:
 the physical screenshot shortcut completed a non-empty region from another app
 with Recall's main window closed, and the clipboard shortcut opened Capture
-after copied text.
+after copied text. D-033 also restores the Chrome action popup's full 344 × 510
+layout after a viewport-relative sizing regression; 68/68 tests and selected
+plus metadata-only real-Chrome checks pass.
 
 Last baseline cross-check: 2026-07-18 against all sections of
 `docs/product-plan.md`
@@ -68,7 +71,7 @@ Update protocol:
 | 3 | Capture CRUD and first integration | Complete | Backend CRUD plus live macOS list/detail/clipboard evidence close D-013 and B-006 |
 | 4 | OpenAI enrichment | Complete | Deterministic coverage plus real Responses API `processing → ready` proof resolve B-007 |
 | 5 | FTS5 keyword retrieval | Complete | Commit `d34a567` pushed; 119 tests and provider-off live/restart proof pass |
-| 6 | Chrome capture | Complete / shortcut polish awaiting manual check | 16 automated tests pass; earlier unpacked selected-text/no-selection Captures displayed in macOS resolve B-009 |
+| 6 | Chrome capture | Complete and real-Chrome verified | 68/68 tests pass; unpacked selected-text/no-selection Captures resolve B-009, and D-033 verifies the corrected action-popup layout |
 | 7 | Embeddings and hybrid retrieval | Complete | Real embedding and vague semantic-query proof with non-null score resolve B-008 |
 | 8 | Reliability and demo readiness | P0 integration verified / backlog reduced | Layer 8 baseline passes 214 backend tests and 44/44 stress scenarios; stale-process recovery and version-aware one-command startup are verified |
 | 9 | Optional Apple on-device path | Gated | Decision D-008 accepted; prerequisites unmet |
@@ -78,6 +81,7 @@ Update protocol:
 | Addition | Browser context and detail-view hardening | Complete, UI-reviewed, and merged | D-030 disables unsafe Chrome context, bounds native display, fixes inline count/scroll, and compacts the popup; PR #9 merged at `0c1083e` after all required checks passed |
 | Addition | Native global capture | Complete and real-device verified | D-031 adds transactional Carbon shortcuts and one app-level capture coordinator; PR #10 merged at `0ab687b`; B-014 is closed |
 | Safeguard | Stable Screen Recording identity | Complete and live-verified | D-032 passes 70/70 macOS tests; app-specific reset, authorization, rebuild persistence, selector launch, and cancellation pass |
+| Safeguard | Chrome action popup sizing | Complete and real-Chrome verified | D-033 uses a 344 × 510 root without viewport-height feedback; 68/68 tests and selected/metadata layouts pass |
 
 The D-023 integration closes B-010, the macOS slice closes B-006, and real
 provider plus unpacked-Chrome evidence closes B-007, B-008, and B-009. B-011 is
@@ -221,6 +225,28 @@ verification, source review, and CI complete; PR #9 merged into `main` at
   extension, macOS, and the aggregate Required checks job.
 - [x] Complete final review and merge evidence. PR #9 merged into `main` at
   merge commit `0c1083e` on 2026-07-21.
+
+## Active reliability correction — Chrome action popup sizing
+
+Status: `[x]` D-033 implementation, 68/68 automated tests, and real unpacked-
+Chrome verification are complete on `codex/fix-chrome-popup-sizing`
+
+- [x] Reproduce the toolbar action as a title-height strip while its full
+  control tree remains present and vertically scrollable.
+- [x] Trace the regression to D-030 removing the working 510-pixel minimum and
+  constraining the shell with a height derived from the action popup's own
+  not-yet-established viewport.
+- [x] Establish a deterministic 344 × 510 pixel root, fill it with the body and
+  internally scrollable shell, and remove viewport-height units from popup
+  dimensions.
+- [x] Preserve the existing compact spacing, capture contract, permissions,
+  retry behavior, and empty browser surrounding-context boundary.
+- [x] Pass all 68 extension tests, including a regression check that rejects
+  viewport-height units in popup dimensions.
+- [x] Reload the real unpacked extension and verify the complete internal-page,
+  regular metadata-only, and 72-character selected-text layouts. The source
+  card, preview, note, Save, and inline-access controls remained reachable; no
+  verification Capture was submitted.
 
 ## Active addition — native global capture
 
@@ -1529,6 +1555,24 @@ Use IDs `B-###`. Never delete an entry; append resolution and date.
 
 Use IDs `E-###`. Record the original symptom and the resolution. Do not erase
 resolved errors.
+
+## E-059 — Chrome action popup collapsed to a title-height strip
+
+- Date: 2026-07-21
+- Status: Resolved and real-Chrome verified 2026-07-21
+- Symptom: Opening the Recall toolbar action showed only a narrow strip with
+  the brand and clipped heading. The remaining controls existed and could be
+  reached only by scrolling inside that approximately minimum-height window.
+- Cause: D-030 removed the popup's working fixed minimum and applied
+  `max-height: min(560px, 100vh)` to an internally scrolling shell. Chrome sizes
+  an action popup from its content, so the content simultaneously depended on
+  the viewport Chrome was still calculating and collapsed the sizing loop.
+- Resolution: D-033 establishes a 344 × 510 pixel root, makes the body and shell
+  fill it, retains the internal scroller, and rejects viewport-height units in
+  automated coverage. All 68 extension tests pass, and real unpacked Chrome
+  shows complete selected and metadata-only layouts after reload.
+- Project impact: Popup layout and its regression test only; no API, backend,
+  storage, permission, inline-capture, or surrounding-context change.
 
 ## E-058 — Enabled Screen Recording row did not authorize the rebuilt app
 

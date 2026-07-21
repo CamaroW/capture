@@ -46,6 +46,7 @@ addition made beyond [`product-plan.md`](product-plan.md).
 | D-030 | Omit unsafe browser context and bound native display | Reliability/privacy safeguard | Implemented, UI-verified, and merged through PR #9 at `0c1083e` |
 | D-031 | Native global capture through Carbon and one app-level coordinator | Addition | Implemented and merged through PR #10 at `0ab687b`; real-device acceptance passed |
 | D-032 | Stable development code identity for TCC-protected screenshot capture | Reliability/privacy safeguard | Implemented; 70/70 tests and live TCC rebuild-persistence proof pass |
+| D-033 | Deterministic Chrome action-popup dimensions | Reliability safeguard | Implemented; 68/68 tests and real-Chrome selected/metadata layouts pass |
 
 ## D-001 — Localhost monorepo architecture
 
@@ -887,6 +888,34 @@ Recording authorization flow:
 - [TN3127: Inside Code Signing: Requirements](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements)
 - [Apple DTS: Screen Recording authorization across ad-hoc rebuilds](https://developer.apple.com/forums/thread/819406)
 - [Control access to screen and system audio recording on Mac](https://support.apple.com/guide/mac-help/control-access-screen-system-audio-recording-mchld6aa7d23/mac)
+
+## D-033 — Deterministic Chrome action-popup dimensions
+
+- Classification: Reliability safeguard approved by user direction
+- Status: Implemented and real-Chrome verified
+- Product impact: Restores the complete toolbar capture UI instead of a
+  scrollable title-height strip
+- Schedule impact: Bounded correction before native Accessibility selection
+
+D-030 compacted the toolbar action but removed its working 510-pixel minimum
+height and constrained the new shell with `min(560px, 100vh)`. Chrome determines
+an action popup's viewport from that popup's content. Making the content height
+depend on the not-yet-established viewport created a sizing feedback loop, and
+the real popup collapsed to approximately Chrome's minimum window height even
+though every control still existed in its accessibility tree.
+
+The popup now establishes a 344 × 510 pixel root before Chrome measures it.
+The body and shell fill that root, the shell retains its internal vertical
+scroller, and no popup dimension depends on viewport-height units. This changes
+no permissions, capture fields, surrounding-context policy, retry identity,
+backend request, or persistence behavior.
+
+All 68 extension tests pass, including a regression assertion that rejects
+viewport-height units in popup dimensions. After reloading the unpacked
+extension, real Chrome displayed the complete popup on an internal page, a
+regular metadata-only page, and a 72-character selected-text state. The source
+card, preview, note field, Save button, and inline-access setting remained
+visible and reachable; verification did not submit a Capture.
 
 ## Pending decisions
 

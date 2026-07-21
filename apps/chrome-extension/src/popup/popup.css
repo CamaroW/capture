@@ -1,4 +1,7 @@
 :root {
+  /* Chrome sizes action popups from their content; viewport units collapse this loop. */
+  width: 344px;
+  height: 510px;
   color-scheme: light;
   font-family:
     Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -11,7 +14,8 @@
 }
 
 body {
-  width: 344px;
+  width: 100%;
+  height: 100%;
   margin: 0;
   overflow: hidden;
   background:
@@ -22,7 +26,7 @@ body {
 .popup-shell {
   display: grid;
   gap: 10px;
-  max-height: min(560px, 100vh);
+  height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
   padding: 14px;

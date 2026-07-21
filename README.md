@@ -176,8 +176,10 @@ toolbar fallback; the resulting cards were also verified in the macOS app.
 
 The D-030 browser-context and display hardening keeps the browser suite at 68
 tests. Inline capture now shows a separate Unicode-aware selection count
-and a keyboard-scrollable selection preview, while the action popup uses a
-smaller, internally scrollable layout. Both Chrome entry points temporarily
+and a keyboard-scrollable selection preview. D-033 corrects the action popup's
+self-sizing regression with an explicit 344 × 510 root and an internally
+scrollable shell; selected and metadata-only states are real-Chrome verified.
+Both Chrome entry points temporarily
 omit surrounding context. Existing stored context is neither migrated nor
 deleted: the macOS detail view hides it by default and, when requested, renders
 at most 2,000 characters and 60 lines while retaining the complete value for

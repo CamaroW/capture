@@ -31,6 +31,9 @@ split; they are no longer assignment gates.
   Recall entry may not authorize the current process. Stable local signing,
   app-specific reauthorization, and permission persistence across a rebuild are
   now live-verified; the macOS suite passes 70/70.
+- D-033 corrects the Chrome action popup's viewport-relative self-sizing
+  regression. Its explicit 344 × 510 root and internal scroller pass 68/68
+  extension tests plus selected and metadata-only real-Chrome checks.
 - The macOS app and Chrome extension are separate clients of the loopback
   FastAPI service. The app does not yet package or start that service.
 
@@ -58,7 +61,10 @@ not approval from a particular historical developer role.
    contract limit, explicitly warns before saving a longer prefix, separates
    the inline Unicode selection count from the note count, makes long selections
    scrollable, and
-   keeps the action popup usable on shorter displays. Existing context is
+   keeps the action popup usable on shorter displays. D-033 removes the
+   viewport-relative sizing loop that later collapsed the real Chrome action
+   popup, using an explicit 344 × 510 root with an internal scroller. Existing
+   context is
    collapsed and display-bounded in macOS without altering stored data. The real
    Chrome toolbar, standalone production-script inline harness, rebuilt macOS
    app, and source review are complete. PR #9 passed all required checks and
@@ -140,8 +146,9 @@ not approval from a particular historical developer role.
   longer selection is visibly limited to its first 12,000 characters, and a
   no-selection toolbar capture relies on title/URL/note as allowed by D-009.
 - Inline UI shows a Unicode-aware selection count independent of the note count
-  and exposes a keyboard-scrollable long-selection preview. The action popup is
-  compact and internally scrollable.
+  and exposes a keyboard-scrollable long-selection preview. Under D-033, the
+  action popup has a deterministic 344 × 510 root and an internally scrollable
+  shell; real Chrome verifies both selected and metadata-only layouts.
 - Existing stored context is collapsed by default in the native detail view.
   Expanding it renders at most 2,000 characters and 60 lines while preserving
   the complete database/model value for retrieval and AI.

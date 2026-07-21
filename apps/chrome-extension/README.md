@@ -46,8 +46,9 @@ For the keyboard-first path, press `Command+Shift+Y` on macOS or
 shortcuts; confirm or customize Recall's binding at `chrome://extensions/shortcuts`.
 The popup focuses the optional note. Press `Command+Enter` or `Control+Enter` to
 save. After a brief **Saved** confirmation, the popup closes automatically.
-The action popup uses a compact width and an internal vertical scroller so its
-controls remain reachable on shorter displays.
+The action popup uses a fixed 344 × 510 pixel root and an internal vertical
+scroller. The explicit root size avoids viewport-relative feedback while Chrome
+is calculating the popup's own window, and keeps every control reachable.
 
 The extension always requests only `activeTab`, `scripting`, `storage`, and
 access to the fixed localhost backend. HTTP/HTTPS page access is optional,

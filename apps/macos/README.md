@@ -106,6 +106,14 @@ The verifier requires a valid app signature, a non-empty `TeamIdentifier`, and
 a signer-based designated requirement instead of a build-specific CDHash-only
 requirement. It rejects the preceding ad-hoc build as intended.
 
+The `/tmp/recall-signed-derived-data` output is a disposable verification
+artifact, not an installed app. Do not pin it to the Dock. Xcode **Run** uses a
+different bundle under Xcode's DerivedData directory; although both copies have
+the same `com.recall.macos` identifier, macOS can launch each explicit path.
+Quit every other Recall copy before debugging so only one process owns the
+global shortcuts, menu-bar item, and capture coordinator. A future packaging
+slice must establish one canonical Applications-directory install.
+
 ### One-time Screen Recording migration
 
 If an earlier ad-hoc Recall entry is already enabled in System Settings, migrate
