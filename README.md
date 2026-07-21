@@ -22,10 +22,11 @@ The earlier documentation-only `main` arrangement is retired by D-023.
 branches remain useful as development checkpoints, but they are not separate
 runtime dependencies.
 
-## Product baseline
+## Product direction
 
-The authoritative Build Week scope and execution plan is
-[`docs/product-plan.md`](docs/product-plan.md). Additions and implementation
+The original Build Week scope and execution plan is
+[`docs/product-plan.md`](docs/product-plan.md). Current priorities are tracked in
+[`docs/roadmap.md`](docs/roadmap.md), and accepted additions or implementation
 clarifications are recorded in [`docs/decisions.md`](docs/decisions.md).
 
 ## Core workflow
@@ -52,12 +53,11 @@ recommended clean-start command creates or repairs the local environment, checks
 configuration and dependencies, starts the service, waits for health, and prints
 the local engineering URLs:
 
-> **Migration 003 boundary:** the screenshot build upgrades an existing default
-> database on first start. On this integration host, the pre-upgrade database is
-> backed up at
-> `data/backups/recall-pre-migration-003-20260720.db`, and the matching code
-> rollback point is `rollback/pre-screenshot-ocr`. Keep both until this release
-> is accepted. See the backend README before replacing or moving the database.
+> **Migration 003 boundary:** the screenshot build upgrades an existing database
+> on first start. Preserve a pre-upgrade database backup before starting this
+> version; the matching code rollback point is
+> `rollback/pre-screenshot-ocr`. See the backend README before replacing or
+> moving a database.
 
 ```bash
 ./scripts/dev.sh
@@ -114,6 +114,8 @@ generated origin to the untracked root `.env` and restart the backend.
   defines provider-generated enrichment output.
 - [`docs/architecture.md`](docs/architecture.md) defines system boundaries and
   ownership.
+- [`docs/roadmap.md`](docs/roadmap.md) defines current priorities and replaces
+  historical Developer A/B roles with component ownership.
 - [`docs/branch-layout.md`](docs/branch-layout.md) records how the historical
   implementation branches were integrated.
 - [`docs/backend-stress-report-2026-07-18.md`](docs/backend-stress-report-2026-07-18.md)

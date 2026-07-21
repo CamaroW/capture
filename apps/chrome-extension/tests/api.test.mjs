@@ -192,6 +192,24 @@ test("manifest has only the approved permissions and fixed backend access", asyn
   ]);
   assert.deepEqual(manifest.host_permissions, ["http://127.0.0.1:8765/*"]);
   assert.equal(manifest.action.default_popup, "src/popup/popup.html");
+  assert.deepEqual(manifest.icons, {
+    16: "assets/icons/icon16.png",
+    32: "assets/icons/icon32.png",
+    48: "assets/icons/icon48.png",
+    128: "assets/icons/icon128.png",
+  });
+  assert.deepEqual(manifest.action.default_icon, manifest.icons);
+  await Promise.all(
+    Object.entries(manifest.icons).map(async ([expectedSize, path]) => {
+      const icon = await readFile(`${extensionRoot}/${path}`);
+      assert.deepEqual(
+        icon.subarray(0, 8),
+        Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+      );
+      assert.equal(icon.readUInt32BE(16), Number(expectedSize));
+      assert.equal(icon.readUInt32BE(20), Number(expectedSize));
+    }),
+  );
   assert.equal(
     manifest.commands._execute_action.suggested_key.mac,
     "Command+Shift+Y",

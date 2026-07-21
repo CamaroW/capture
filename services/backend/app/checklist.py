@@ -1,4 +1,4 @@
-"""Read the Developer B Markdown checklist into a live dashboard snapshot."""
+"""Read the historical development checklist into a live dashboard snapshot."""
 
 from __future__ import annotations
 
