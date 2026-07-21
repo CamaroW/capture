@@ -63,7 +63,7 @@ Update protocol:
 | 9 | Optional Apple on-device path | Gated | Decision D-008 accepted; prerequisites unmet |
 | 10 | Final freeze and submission | Pending | Not started |
 | Addition | Screenshot-to-notes OCR | Published / manual proof pending | Commit `fc23cdf`, draft PR #4, 210 backend, 16 extension, and 37 macOS tests pass; B-012/B-013 track live demo proof |
-| Addition | Inline browser capture | Implemented / real Chrome proof pending | 30 extension tests and the complete browser-fixture flow pass; B-014 tracks unpacked-Chrome proof |
+| Addition | Inline browser capture | Phase 2 implemented / full proposal tracked | 30 extension tests and the complete browser-fixture flow pass; canonical spec maps every original phase and hardening row; B-014 tracks unpacked-Chrome proof |
 
 The D-023 integration closes B-010, the macOS slice closes B-006, and real
 provider plus unpacked-Chrome evidence closes B-007, B-008, and B-009. B-011 is
@@ -120,6 +120,11 @@ B-014 remains open, and Phase 3 has not started
 - [x] Assign Chrome content script, service worker, permission UI, browser crop,
   and automated extension testing to Developer B. Native screenshot UI remains
   Developer A's owned path.
+- [x] Reconcile the entire original proposal into the canonical specification:
+  retain its schedule estimate; map all five original phases to the current
+  three-phase terminology; document component responsibilities, both data
+  pipelines, `source_type: screenshot`, `source_app: Google Chrome`, every
+  hardening case, and every shared/screenshot merge gate.
 - [x] Phase 2 permission boundary: request optional HTTP/HTTPS access only from
   the explicit popup toggle; dynamically register, update, revoke, and remove
   inline controls from open tabs without disabling toolbar capture.
@@ -137,6 +142,11 @@ B-014 remains open, and Phase 3 has not started
 - [!] Phase 2 real unpacked-extension gate B-014 is pending because the
   available in-app browser cannot install an unpacked Chrome extension.
 - [ ] Phase 3: implement and verify explicit browser-region screenshot capture.
+- [~] Cross-phase hardening: viewport positioning, Unicode limits, offline
+  delivery, retry identity, toolbar regression, and provider-off keyword search
+  are covered; code blocks, CJK, dark/light real pages, high `z-index`, SPA
+  navigation, rapid double-click, Chrome restrictions, PDFs, zoom, and all
+  screenshot-specific rows remain explicit open work in the canonical matrix.
 - [!] Run the B-014 unpacked-extension interaction matrix before claiming
   Phase 2 is demo-verified.
 

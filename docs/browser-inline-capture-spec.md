@@ -22,6 +22,25 @@ pipeline.
 The toolbar popup and `Command+Shift+Y` shortcut remain supported. Inline
 capture is an additional entry point, not a second notes system.
 
+## Complete proposal coverage and phase mapping
+
+This file is the canonical architecture for the complete improvement proposal.
+The implementation consolidated two originally separate steps, so the mapping
+below preserves both the original plan and the current build terminology.
+
+| Original proposal | Current build phase | Status | Notes |
+| --- | --- | --- | --- |
+| Phase 1 — interaction contract | Phase 1 | Complete | States, privacy, permissions, ownership, and gates were committed before runtime work |
+| Phase 2 — text-selection vertical slice | Phase 2 | Implemented; B-014 pending | Selection detection, pill, composer, errors, and Capture delivery are code- and fixture-verified |
+| Phase 3 — shared capture coordinator | Included in Phase 2 | Complete | Service worker, validation, exact retry identity, and toolbar/inline reuse shipped with the vertical slice instead of being deferred |
+| Phase 4 — browser screenshot capture | Phase 3 | Not started | Explicit visible-tab region selection and GPT OCR remain independently gated |
+| Phase 5 — hardening | Cross-phase hardening | Partially complete | Automated Phase 2 coverage passes; real Chrome, cross-site, and all screenshot rows remain open |
+
+The original planning estimate was roughly 3–5 engineering days, or 2–3
+calendar days if text-selection and screenshot work could proceed in parallel.
+That estimate is retained as planning history, not a promise: screenshot work
+must not start in parallel if it could destabilize the completed text path.
+
 ## Scope boundary
 
 ### Phase 2 — selected web text
@@ -42,7 +61,8 @@ capture is an additional entry point, not a second notes system.
 - Use the existing GPT `/v1/ocr` route, show the cloud boundary before upload,
   and keep the image transient.
 - Review extracted text, add an optional personal comment, and save a normal
-  Capture with `source_type: screenshot` plus the page title and URL.
+  Capture with `source_type: screenshot`, `source_app: Google Chrome`, the page
+  title, and the page URL.
 
 Chrome cannot observe an arbitrary macOS screenshot. System-wide screenshot
 capture and Apple Vision OCR remain owned by the native macOS application. The
@@ -165,9 +185,9 @@ text and metadata, not the screenshot.
 
 ## Permission and privacy contract
 
-The current extension injects extraction code only after an explicit toolbar or
-shortcut action. Immediate selection detection requires broader page access and
-therefore must be opt-in.
+The baseline toolbar and shortcut paths inject extraction code only after an
+explicit action. Phase 2 adds immediate selection detection only after the user
+opts into broader HTTP and HTTPS page access.
 
 REcall will request optional HTTP and HTTPS site access behind a setting labeled
 **Show Add to REcall when I select text on websites**. Granting it permits a
@@ -194,6 +214,38 @@ page selection / region overlay
 -> SQLite + enrichment + FTS5 + embeddings
 ```
 
+### Component responsibilities
+
+| Component | Responsibility | Data boundary |
+| --- | --- | --- |
+| Popup setting | Request or revoke optional HTTP/HTTPS website access from an explicit user gesture | Does not receive selected source merely because access is granted |
+| Content script | Observe completed `pointerup` or keyboard selections, reject unsupported targets, snapshot bounded text/context, and render the isolated overlay | Keeps source inside the tab until **Save Memory** |
+| Closed Shadow DOM overlay | Render the pill, preview, comment field, actions, and live status without inheriting page CSS or changing document flow | Uses text-only DOM assignment and pointer events only on visible controls |
+| Extension service worker | Validate messages, construct the existing request, freeze identity across retry, and map errors while backend idempotency prevents duplicate memories | Only extension-owned runtime messages can reach localhost delivery |
+| Localhost Capture API | Persist the original source and personal note before asynchronous enrichment | Reuses `POST /v1/captures`; no inline-specific schema |
+| Localhost OCR API | Accept one explicitly approved transient browser crop for GPT text extraction | Reuses `POST /v1/ocr`; image bytes are never stored |
+| Existing data pipeline | SQLite persistence, enrichment, embeddings, FTS5, hybrid retrieval, and provider-off keyword fallback | Source, user note, and AI interpretation remain separate |
+
+The two complete pipelines are:
+
+```text
+selection + bounded page context + comment
+-> POST /v1/captures
+-> SQLite source/note commit
+-> asynchronous AI enrichment
+-> embeddings + FTS5
+-> hybrid retrieval
+```
+
+```text
+explicit visible-tab crop
+-> cloud boundary acknowledgement
+-> POST /v1/ocr
+-> editable extracted text + optional comment
+-> POST /v1/captures with source_type=screenshot and source_app=Google Chrome
+-> existing storage, enrichment, and retrieval pipeline
+```
+
 Developer B owns the content script, service worker, extension permission
 flow, browser screenshot crop, shared request coordinator, automated extension
 tests, and documentation. The existing backend contract is reused unless an
@@ -214,6 +266,34 @@ without an explicit shared decision.
 - Reduced-motion preferences remove nonessential movement.
 - The extension must not suppress the website's normal copy command, context
   menu, text selection, link behavior, scrolling, or keyboard shortcuts.
+
+## Complete hardening matrix
+
+`[x]` means deterministic evidence exists, `[~]` means the architecture or a
+partial automated check exists but the full matrix remains open, and `[ ]`
+means the test belongs to the screenshot phase or has not been run.
+
+| Required case from the proposal | Status | Current evidence or remaining work |
+| --- | --- | --- |
+| Selection near every viewport edge | `[x]` | Positioning tests cover collision and viewport clamping; fixture confirmed adjacent placement |
+| Scrolling and browser zoom | `[~]` | Scroll dismissal is covered in runtime behavior; run the real 80–200% Chrome matrix under B-014 |
+| Code blocks | `[ ]` | Run on representative documentation and GitHub pages |
+| Emoji and long Unicode selections | `[x]` | Unicode limits and emoji-safe truncation are automated |
+| CJK selections | `[ ]` | Add a representative real-page and normalization case |
+| Dark and light websites | `[~]` | Isolated colors and focus styling exist; visually verify both in unpacked Chrome |
+| Very high page `z-index` elements | `[ ]` | Verify overlay stacking and dismissal without changing page controls |
+| Single-page application navigation | `[ ]` | Verify route changes remove stale UI and retain registered behavior |
+| Offline backend | `[x]` | Coordinator maps transport failure to the required local recovery message |
+| Unavailable GPT | `[~]` | Raw text Capture succeeds without enrichment; browser OCR failure remains a Phase 3 test |
+| Double-clicking Save | `[~]` | Submitting state disables mutation; add an explicit rapid-activation regression test |
+| Ambiguous timeout and retry | `[x]` | State-machine and coordinator tests preserve the exact timestamp, source, comment, and `client_capture_id` |
+| High-DPI screenshot crop | `[ ]` | Phase 3 must test `devicePixelRatio`, zoom, visible-tab bounds, and edge crops |
+| Cancellation at every screenshot step | `[ ]` | Phase 3 must cover selection, region, disclosure, OCR review, retry, and composer cancellation |
+| Restricted Chrome pages | `[~]` | Declared unsupported; verify no injection/control in unpacked Chrome |
+| Built-in PDF viewer | `[~]` | Declared unsupported; verify graceful absence in unpacked Chrome |
+| Cross-origin frames | `[~]` | Top-level-only registration is implemented; verify no frame-content claim |
+| Toolbar regression | `[x]` | Toolbar fixture uses the shared coordinator and completes a save |
+| Keyword retrieval while AI is unavailable | `[x]` | Existing provider-off backend/FTS contract remains unchanged; rerun in final full-stack freeze |
 
 ## Phase 1 acceptance gates
 
@@ -239,6 +319,28 @@ completed selection action → comment → save confirmation → automatic dismi
 and reported identical article bounds before and after the overlay. B-014 still
 tracks the real unpacked-Chrome permission, localhost delivery, macOS display,
 and permission-revocation proof; the fixture is not a substitute for that gate.
+
+### Complete shared merge-gate checklist
+
+- [x] The action uses a fixed overlay and fixture evidence shows zero page
+  layout change.
+- [x] The action does not move keyboard focus merely by appearing.
+- [x] Selected source and context are neither stored nor transmitted before
+  explicit **Save Memory**.
+- [~] Closing or revoking removes the overlay without modifying page content;
+  deterministic behavior passes, and B-014 retains the real-page proof.
+- [~] One logical attempt freezes its identity and disables mutable submission;
+  add the explicit rapid-double-click row before final merge.
+- [x] Existing toolbar capture remains functional in the regression fixture.
+- [x] New permissions, privacy boundaries, unsupported pages, and revocation
+  behavior are documented.
+- [x] Provider-off keyword retrieval remains part of the unchanged backend
+  contract.
+- [ ] A real unpacked Chrome selection reaches localhost, appears in the macOS
+  card, and survives permission revocation testing under B-014.
+- [ ] Screenshot bytes are never persisted in Phase 3 implementation or tests.
+- [ ] Phase 3 passes high-DPI crop, every cancellation path, GPT disclosure,
+  offline/unavailable GPT, extracted-text limits, and real macOS-card proof.
 
 Phase 3 cannot merge until high-DPI cropping, all cancellation paths, transient
 image cleanup, visible GPT disclosure, OCR failure, oversized output, and a real

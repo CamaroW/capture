@@ -20,6 +20,27 @@ This addition complements the toolbar popup and keyboard shortcut. It does not
 create a second notes system, change the backend schema, or start the separately
 scoped browser-region screenshot phase.
 
+## Complete proposal reconciliation
+
+The complete original proposal is preserved in the canonical specification,
+including its schedule estimate, all five original build stages, both data
+pipelines, every hardening case, and every merge gate. Current implementation
+terminology differs only because the shared-coordinator work originally called
+Phase 3 shipped inside the selected-text Phase 2 vertical slice:
+
+- original Phase 1 remains current Phase 1 and is complete;
+- original Phase 2 remains current Phase 2 and is implemented;
+- original Phase 3, the shared service worker, is complete inside Phase 2;
+- original Phase 4 maps to current Phase 3 browser screenshot capture and has
+  not started; and
+- original Phase 5 is the cross-phase hardening matrix, which is partially
+  complete and explicitly tracks every remaining browser/screenshot row.
+
+The full mapping, component architecture, hardening statuses, and merge-gate
+checklist live in
+[`browser-inline-capture-spec.md`](browser-inline-capture-spec.md). This record
+contains implementation evidence and does not replace that canonical scope.
+
 ## Phase 1 — interaction and privacy contract
 
 Status: Complete in commit `d0fa028`
@@ -120,8 +141,12 @@ fully demo-verified or merged under D-028, run this real-browser matrix:
 5. Disable inline capture and confirm the control disappears from an open tab.
 6. Confirm toolbar and keyboard capture still work after revocation.
 
-Phase 3 browser-region screenshot capture has not started. It remains a
-separate, independently gated improvement and must not destabilize this
+In addition to B-014, the incomplete hardening rows are code blocks, CJK,
+dark/light real-page proof, very high `z-index`, SPA navigation, explicit rapid
+double-click coverage, restricted-page/PDF checks, and the real 80–200% zoom
+matrix. Phase 3 browser-region screenshot capture and its high-DPI,
+cancellation, GPT-failure, transient-image, and end-to-end gates have not
+started. They remain independently gated and must not destabilize this
 selected-text path.
 
 ## Publication record
