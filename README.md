@@ -186,7 +186,7 @@ Capture, repeated-trigger draft preservation, and the bounded long-context view
 were exercised in the real app. The temporary unsigned build correctly exposed
 the missing Screen Recording permission without changing it, so actual physical
 hotkeys and real region selection remain a signed-build manual gate.
-Final regression also passes 214 backend tests, 44/44 stress scenarios, and
+Final regression also passes 215 backend tests, 44/44 stress scenarios, and
 68/68 Chrome-extension tests.
 
 Live verification covers provider-off keyword fallback, real OpenAI enrichment

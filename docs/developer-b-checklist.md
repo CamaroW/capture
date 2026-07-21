@@ -19,8 +19,8 @@ macOS client, screenshot OCR, shared contracts, and layered CI. It includes
 D-029 merged through PR #8 at `71ec387` and D-030 merged through PR #9 at
 `0c1083e`.
 
-The D-031 working tree adds 16 macOS shortcut, coordinator, draft-safety, and
-asynchronous screenshot tests. Final regression passes 214 backend tests, 44/44
+The D-031 working tree adds 20 macOS shortcut, coordinator, draft-safety, and
+asynchronous screenshot tests. Final regression passes 215 backend tests, 44/44
 stress scenarios, 68/68 Chrome-extension tests, and 68/68 macOS tests on the
 host. Bounded real-app evidence is recorded below. Actual physical global key
 delivery and real screenshot-region selection remain the normally signed-build
@@ -256,7 +256,7 @@ build manual gate in B-014 remains open
   change.
 - [x] Add 20 shortcut, coordinator, draft-safety, and asynchronous screenshot
   tests and pass all 68/68 macOS tests on the host. Final cross-component
-  regression also passes 214 backend tests, 44/44 stress scenarios, and 68/68
+  regression also passes 215 backend tests, 44/44 stress scenarios, and 68/68
   Chrome-extension tests.
 - [x] Complete bounded real-UI Settings verification: confirm both defaults,
   change screenshot capture to `Option+Shift+Command+5`, relaunch and confirm it
