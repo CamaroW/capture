@@ -14,7 +14,9 @@
       document.body.replaceChildren(popupDocument.querySelector("main"));
 
       const hasSelection = new URLSearchParams(location.search).get("selection") !== "0";
+      const offline = new URLSearchParams(location.search).get("offline") === "1";
       const storage = {};
+      let inlineEnabled = false;
       globalThis.chrome = {
         tabs: {
           query: async () => [{
@@ -37,6 +39,31 @@
             },
           }],
         },
+        runtime: {
+          sendMessage: async (message) => {
+            if (message.type === "recall:inline:sync") {
+              return { ok: true, enabled: inlineEnabled };
+            }
+            if (offline) {
+              throw new TypeError("simulated extension transport failure");
+            }
+            return {
+              ok: true,
+              capture: { id: "fixture-capture", status: "processing" },
+            };
+          },
+        },
+        permissions: {
+          contains: async () => inlineEnabled,
+          request: async () => {
+            inlineEnabled = true;
+            return true;
+          },
+          remove: async () => {
+            inlineEnabled = false;
+            return true;
+          },
+        },
         storage: {
           local: {
             get: async (key) => ({ [key]: storage[key] }),
@@ -45,20 +72,6 @@
           },
         },
       };
-
-      if (new URLSearchParams(location.search).get("offline") === "1") {
-        globalThis.fetch = async () => {
-          throw new TypeError("simulated connection refusal");
-        };
-      } else if (new URLSearchParams(location.search).get("success") === "1") {
-        globalThis.fetch = async () => new Response(
-          JSON.stringify({ id: "fixture-capture", status: "processing" }),
-          {
-            status: 202,
-            headers: { "Content-Type": "application/json" },
-          },
-        );
-      }
 
       await import("../../src/popup/popup.js");
     </script>

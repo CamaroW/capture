@@ -42,7 +42,7 @@ addition made beyond [`product-plan.md`](product-plan.md).
 | D-026 | Deterministic macOS command-line test runner | Reliability safeguard | Accepted |
 | D-027 | Transient screenshot OCR into the existing Capture pipeline | Addition | Implemented and live-verified in PR #5 |
 | D-028 | Layered GitHub Actions pull-request checks | Reliability safeguard | Accepted by user direction |
-| D-029 | Opt-in inline browser selected-text capture | Addition | Accepted for implementation; verification pending |
+| D-029 | Opt-in inline browser selected-text capture | Addition | Implemented and real-Chrome acceptance verified; merge pending |
 
 ## D-001 — Localhost monorepo architecture
 
@@ -624,8 +624,8 @@ interactive operating-system flows retain their documented manual gates.
 ## D-029 — Opt-in inline browser selected-text capture
 
 - Classification: Addition approved by explicit user direction
-- Status: Accepted for implementation; the prototype branch has been evaluated,
-  but current-main integration and real unpacked-Chrome verification are pending
+- Status: Implemented on the current branch and real unpacked-Chrome acceptance
+  verified; pull-request CI and merge remain pending
 - Product impact: Reduces a selected-web-text Capture to one nearby action, an
   optional personal note, and an explicit save
 - Schedule impact: Bounded Chrome-extension slice; native capture improvements
@@ -645,15 +645,40 @@ capture remain supported fallbacks. All browser entry points reuse one validated
 service-worker delivery path, and an ambiguous retry reuses the exact original
 source, note, timestamp, and `client_capture_id`.
 
+HTTP/HTTPS origins remain optional permissions and inline capture is off by
+default. No static content script is declared. On opt-in, the service worker
+dynamically registers the isolated script and injects it into eligible tabs that
+are already open; on revocation, it unregisters future injection and sends an
+immediate cleanup message to open tabs. Neither a page nor its content script
+communicates with the localhost backend directly.
+
+Chrome may preserve an injected document in its back-forward cache while the
+user revokes access on another page. A cached document therefore suspends on
+`pagehide`, performs a read-only permission check on persisted `pageshow`, and
+fails closed unless access is explicitly still enabled. The service worker also
+rechecks permission before accepting a content-script save. Toolbar saves are
+not subject to that inline-only gate.
+
 This decision changes no backend, database, enrichment, OCR, or retrieval
 contract. It does not include browser-region screenshots, native Accessibility
 capture, passive system-wide selection monitoring, Chrome native messaging, or
 image attachments. The native D-027 flow remains the system screenshot path.
 
-Merge requires deterministic coverage of permission initialization/revocation,
-Unicode limits, rapid activation, error dismissal, stable retry identity, and
-toolbar regression, followed by a real unpacked-Chrome enable/save/macOS-display/
-revoke run on an already-open page.
+Deterministic coverage now includes permission initialization and revocation,
+Unicode limits, rapid activation, error dismissal, stable retry identity,
+already-open-tab injection, BFCache suspension, save-time permission checks, and
+toolbar regression; the dependency-free suite passed 68/68 tests. A real
+unpacked-Chrome run enabled inline capture on an already-open page without a
+refresh and confirmed that the selected source plus a Chinese/emoji personal
+note were persisted exactly. It also verified that Escape remained visible to
+the page, editable targets were ignored, an offline retry retained its exact
+attempt, revocation removed an open composer, a real BFCache return stayed
+disabled, and toolbar capture still saved after revocation. All resulting cards
+displayed with the exact source and note in the macOS app. The temporary backend
+intentionally had no AI provider configured, so the resulting enrichment
+`error` demonstrates the existing persist-first rule: the Capture succeeded and
+retained its source and note even though enrichment did not. Final pull-request
+checks and merge evidence remain to be recorded.
 
 ## Pending decisions
 

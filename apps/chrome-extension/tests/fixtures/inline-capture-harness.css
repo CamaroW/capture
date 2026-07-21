@@ -1,0 +1,67 @@
+:root {
+  color-scheme: light dark;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 40px 24px 100px;
+  line-height: 1.55;
+}
+
+.eyebrow {
+  color: #4c8763;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+article,
+.unsupported {
+  margin: 28px 0;
+  padding: 24px;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 16px;
+}
+
+pre,
+[contenteditable="true"],
+input {
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, currentColor 24%, transparent);
+  border-radius: 8px;
+}
+
+input {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.high-stack {
+  position: fixed;
+  z-index: 2147483646;
+  right: 12px;
+  bottom: 54px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: white;
+  background: #7c2e29;
+  font-size: 11px;
+}
+
+#harness-status {
+  position: fixed;
+  z-index: 100;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 10px 16px;
+  background: Canvas;
+  border-top: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  font-size: 11px;
+}

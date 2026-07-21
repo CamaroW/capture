@@ -38,6 +38,34 @@ optional personal note stays independent; neither creates an image store or a
 second notes database. The macOS system selection command briefly uses a random
 OS temporary PNG and removes it after the normal selection flow.
 
+## Browser inline capture boundary
+
+Decision D-029 adds an opt-in selected-text surface without changing the
+backend contract. The extension keeps HTTP/HTTPS website access in
+`optional_host_permissions`, leaves it disabled by default, and declares no
+static content script. After explicit permission, the service worker registers
+the isolated content script dynamically and injects it into eligible tabs that
+are already open, so users do not need to refresh them.
+
+Selection text and bounded context stay inside the page until the user chooses
+Save. The content script then sends one frozen attempt to the extension service
+worker; toolbar and inline capture share the same validation, retry identity,
+and localhost delivery coordinator. The page script never calls the backend
+directly. Revoking access unregisters future injection and immediately asks
+already-open tabs to remove Recall controls and listeners.
+
+An injected document becomes suspended on `pagehide`. If Chrome restores it
+from the back-forward cache, it sends a read-only permission-status message and
+resumes only after an explicit enabled response; denial or transport failure
+removes the controller. The service worker also rechecks the optional permission
+before delivering any content-script save, while toolbar saves remain available
+without broad page access. This closes the cached-document window in which an
+off-screen page could otherwise miss the revocation broadcast.
+
+This boundary remains text-only. It does not persist page images or add an
+attachment contract. The native D-027 screenshot flow likewise stores reviewed
+OCR-derived text rather than an image attachment.
+
 ## Component ownership
 
 Historical Developer A/B labels are retained in the execution log as provenance,
@@ -119,6 +147,9 @@ Failure rules:
 
 - A model or embedding failure never deletes the source or user note.
 - Enrichment failure produces `error` plus a retryable error message.
+- Because the original Capture is committed first, an enrichment `error` when
+  AI is unconfigured is not a capture failure; the exact source and note remain
+  stored.
 - Startup converts processing work orphaned by a previous process exit into a
   visible, retryable `error` without changing the source or user note.
 - Embedding failure may leave a text-enriched Capture searchable through FTS.

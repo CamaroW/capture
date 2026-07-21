@@ -138,6 +138,12 @@ all 44 deterministic stress scenarios, 16 extension tests, and 27 macOS tests.
 The screenshot-note hardening tree passes 214 backend tests, 44/44 stress
 scenarios, 16 extension tests, and 43 macOS tests, including the production
 Apple Vision extractor.
+The current inline-browser-capture change passes 68 extension tests while the
+unchanged backend, stress, and macOS suites remain green at 214, 44/44, and 43.
+Real unpacked-Chrome verification covers opt-in on an already-open page, exact
+Unicode source/note persistence, offline retry, Escape and editable-page
+compatibility, immediate revocation, BFCache return after revocation, and the
+toolbar fallback; the resulting cards were also verified in the macOS app.
 Live verification covers provider-off keyword fallback, real OpenAI enrichment
 and embeddings, semantic retrieval with a non-null score, and both selected-text
 and no-selection Chrome Captures appearing as ready cards in the macOS app.

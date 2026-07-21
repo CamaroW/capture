@@ -180,17 +180,28 @@ test("backend error envelope remains visible without leaking transport details",
 
 
 test("manifest has only the approved permissions and fixed backend access", async () => {
-  const manifest = JSON.parse(
-    await readFile(`${extensionRoot}/manifest.json`, "utf8"),
-  );
+  const [manifest, packageMetadata] = await Promise.all([
+    readFile(`${extensionRoot}/manifest.json`, "utf8").then(JSON.parse),
+    readFile(`${extensionRoot}/package.json`, "utf8").then(JSON.parse),
+  ]);
 
   assert.equal(manifest.manifest_version, 3);
+  assert.equal(manifest.version, "0.3.0");
+  assert.equal(packageMetadata.version, manifest.version);
   assert.deepEqual(manifest.permissions.sort(), [
     "activeTab",
     "scripting",
     "storage",
   ]);
   assert.deepEqual(manifest.host_permissions, ["http://127.0.0.1:8765/*"]);
+  assert.deepEqual(manifest.optional_host_permissions, [
+    "http://*/*",
+    "https://*/*",
+  ]);
+  assert.deepEqual(manifest.background, {
+    service_worker: "src/background/service-worker.js",
+    type: "module",
+  });
   assert.equal(manifest.action.default_popup, "src/popup/popup.html");
   assert.deepEqual(manifest.icons, {
     16: "assets/icons/icon16.png",
@@ -218,7 +229,7 @@ test("manifest has only the approved permissions and fixed backend access", asyn
 });
 
 
-test("popup includes no-selection, saved, processing, and offline states", async () => {
+test("popup preserves toolbar capture while exposing opt-in inline access", async () => {
   const [html, popupSource] = await Promise.all([
     readFile(`${extensionRoot}/src/popup/popup.html`, "utf8"),
     readFile(`${extensionRoot}/src/popup/popup.js`, "utf8"),
@@ -228,9 +239,12 @@ test("popup includes no-selection, saved, processing, and offline states", async
   assert.match(html, /Ctrl\/⌘/);
   assert.match(html, /aria-describedby="note-count save-hint retry-warning"/);
   assert.match(html, /Retry uses the original source and note\./);
+  assert.match(html, /Show Add to Recall when I select text/);
+  assert.match(html, /id="inline-capture-toggle"[\s\S]*disabled/);
   assert.match(popupSource, /"Saved\."/);
-  assert.match(popupSource, /"Processing with AI…"/);
-  assert.match(popupSource, /RECALL_UNAVAILABLE_TITLE/);
+  assert.match(popupSource, /"Your source and note are safely stored\."/);
+  assert.match(popupSource, /sendCaptureAttempt\(attempt\)/);
+  assert.match(popupSource, /createInlinePermissionController\(\)/);
   assert.match(popupSource, /chrome\.storage\.local\.remove/);
   assert.match(popupSource, /event\.metaKey \|\| event\.ctrlKey/);
   assert.match(popupSource, /setAttribute\("aria-invalid"/);

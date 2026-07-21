@@ -19,6 +19,9 @@ split; they are no longer assignment gates.
   Apple Vision. Screenshot bytes remain transient and are not stored.
 - D-028 CI runs backend, deterministic stress, Chrome-extension, and macOS jobs
   plus one aggregate **Required checks** result.
+- The current D-029 change implements opt-in inline selected-text capture and
+  has passed its real unpacked-Chrome acceptance matrix; it is not part of
+  `main` until its pull request and CI complete.
 - The macOS app and Chrome extension are separate clients of the loopback
   FastAPI service. The app does not yet package or start that service.
 
@@ -36,19 +39,20 @@ not approval from a particular historical developer role.
 
 ## Ordered priorities
 
-1. **Brand assets — complete in the current change.** Use the supplied AppIcon
+1. **Brand assets — complete on `main`.** Use the supplied AppIcon
    variants in the macOS asset catalog and the supplied Chrome sizes in the
    extension manifest. Keep the color app icon separate from a monochrome
    menu-bar template image.
-2. **Opt-in inline browser selected-text capture — next.** Rebuild the useful
-   parts of `agent/browser-inline-capture` on current `main`, implement the
-   accepted D-029 boundary, and ship selected text plus an optional note through
-   the existing Capture API. Resolve the Unicode, permission-initialization, Escape-key,
-   error-dismissal, and real-Chrome verification gaps before merge.
-3. **Native global capture shortcuts.** Add a configurable global screenshot
-   shortcut that reuses the existing region-selection and Quick Capture flow.
-   Add clipboard capture through the same shortcut infrastructure. The app must
-   be running; launch-at-login is a separate opt-in improvement.
+2. **Opt-in inline browser selected-text capture — implemented and verified in
+   the current change.** D-029 now ships selected text plus an optional note
+   through the existing Capture API with optional, default-off website access.
+   The remaining work is pull-request review, CI, and merge evidence.
+3. **Native global capture shortcut and menu-bar availability — next.** Add a
+   configurable global screenshot shortcut that reuses the existing region
+   selection and Quick Capture flow, and keep it available from the menu-bar app
+   while the main window is closed. Add clipboard capture through the same
+   shortcut infrastructure. The app must be running; launch-at-login is a
+   separate opt-in improvement.
 4. **Native Accessibility selection.** Read the focused app's selected text and
    bounds only after a user shortcut, then open capture UI near that selection.
    Keep clipboard capture as the compatibility fallback and avoid passive
@@ -67,6 +71,10 @@ not approval from a particular historical developer role.
 
 ## Later product polish
 
+- Center inline browser context around the selected Range on very long pages;
+  the current bounded article/main extraction may spend its 20,000-character
+  context budget before reaching a selection near the end. The exact selected
+  text is still saved independently.
 - Make semantic retrieval visible in the macOS results, for example by showing
   when a Capture matched by meaning rather than only by literal text.
 - Group the library timeline into useful recent-date sections without changing
@@ -80,7 +88,7 @@ not approval from a particular historical developer role.
 
 ## Near-term acceptance gates
 
-### Inline browser capture
+### Inline browser capture — verified in the current change
 
 - Website access is optional, explicit, revocable, and off by default.
 - Merely selecting text stores and transmits nothing.
@@ -89,9 +97,18 @@ not approval from a particular historical developer role.
   across ambiguous retries.
 - Toolbar capture remains a working fallback.
 - Automated coverage includes Unicode notes, rapid activation, permission races,
-  retry/error dismissal, and current-tab injection.
-- A real unpacked-Chrome run proves enable, save, macOS display, and revocation
-  on an already-open page.
+  retry/error dismissal, current-tab injection, BFCache suspension, and a
+  save-time permission gate.
+- A real unpacked-Chrome run proved that enabling on an already-open page needs
+  no refresh and that selected source plus a Chinese/emoji note persist exactly.
+- The same run proved offline retry, normal page Escape behavior, ignored
+  editable targets, immediate composer cleanup on revocation, a disabled real
+  BFCache return, toolbar capture after revocation, and exact card display in
+  the macOS app. Pull-request CI remains the merge gate.
+
+The verification backend intentionally had no AI provider configured. Its later
+enrichment `error` did not invalidate the successful Capture: the persist-first
+pipeline retained the original source and note.
 
 ### Native global screenshot capture
 

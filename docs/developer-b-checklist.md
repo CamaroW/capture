@@ -6,11 +6,11 @@ Project: Recall
 
 Last updated: 2026-07-20
 
-Current phase: post-P0 usability, documentation, and release readiness
+Current phase: D-029 inline browser capture verification and review
 
-Current branch: `main`
+Current branch: `codex/browser-inline-capture`
 
-Last verified commit: `7300106`
+Last verified commit: `f66d936` (branch base; current change not yet committed)
 
 Canonical target: `main`
 
@@ -18,6 +18,10 @@ The canonical `main` tree combines the hardened backend, Chrome extension,
 macOS client, screenshot OCR, shared contracts, and layered CI. The current
 baseline passes 214 backend tests, 44/44 stress scenarios, 16 extension tests,
 and 43 macOS tests.
+
+The current D-029 feature change passes 68/68 dependency-free extension tests;
+this count is verification evidence for the current implementation rather than
+a permanent suite-size requirement.
 
 Last baseline cross-check: 2026-07-18 against all sections of
 `docs/product-plan.md`
@@ -64,6 +68,7 @@ Update protocol:
 | 9 | Optional Apple on-device path | Gated | Decision D-008 accepted; prerequisites unmet |
 | 10 | Final freeze and submission | Pending | Not started |
 | Addition | Screenshot-to-notes OCR | Complete and verified | PR #5 supersedes draft PR #4; 214 backend, 44/44 stress, 16 extension, and 43 macOS tests pass; live GPT, Apple Vision, permission, cancellation, and dismissal flows pass |
+| Addition | Opt-in inline browser capture | Implemented and real-Chrome acceptance verified / merge pending | 68/68 extension tests pass; enable/save/retry/revoke/BFCache/toolbar fallback and macOS display were verified |
 
 The D-023 integration closes B-010, the macOS slice closes B-006, and real
 provider plus unpacked-Chrome evidence closes B-007, B-008, and B-009. B-011 is
@@ -115,6 +120,53 @@ D-027; the reviewed change is recorded in PR #5
   B-013 record the 2026-07-20 evidence.
 - [x] PR #5 publishes `codex/pr4-hardening` as the reviewed successor to PR #4;
   the final remote-state check controls its merge into `main`.
+
+## Active addition — opt-in inline browser selected-text capture
+
+Status: `[x]` implementation, deterministic coverage, and real-Chrome acceptance
+verified under D-029; pull-request CI and merge remain pending
+
+- [x] Keep inline capture off by default and request broad HTTP/HTTPS access only
+  through Chrome's optional permission prompt. Toolbar and keyboard capture keep
+  working without that access.
+- [x] Declare no static content script. After opt-in, register the isolated
+  script dynamically and inject it into eligible already-open tabs so users do
+  not need to refresh them.
+- [x] Keep selected source and bounded context inside the page until Save. Do
+  not write the selection to extension storage, log it, or send it merely
+  because a user selected text.
+- [x] Route toolbar and inline saves through one service-worker coordinator that
+  validates the attempt and freezes source, note, timestamp, and
+  `client_capture_id` across retryable ambiguity.
+- [x] On permission removal, unregister future injection and immediately tell
+  open tabs to remove Recall controls and listeners. Deterministic tests cover
+  permission initialization, races, current-tab injection, and revocation.
+- [x] Preserve the existing text-only data model. This slice does not save page
+  images or introduce image attachments; that requires the later attachment
+  design recorded in the roadmap.
+- [x] Pass all 68 dependency-free extension tests at this verification point,
+  including Unicode limits, rapid activation, Escape behavior, focus/error
+  dismissal, stable retry identity, BFCache suspension, save-time permission
+  checks, JavaScript syntax, and toolbar regression.
+- [x] In real unpacked Chrome, enable the optional access while the harness page
+  is already open and confirm **Add to Recall** appears without a refresh. Save
+  a Chinese/emoji personal note and verify both it and the selected original
+  source are persisted exactly.
+- [x] Confirm Escape reaches the host page without cancellation, selections in
+  input/contenteditable controls do not trigger Recall, and an offline error
+  focuses **Try again**, survives tab focus changes, and reuses one exact attempt
+  after the isolated backend restarts.
+- [x] Revoke access while an inline composer is open and confirm it disappears
+  immediately. Return to a real BFCache-restored page, confirm the fixture
+  reports one persisted restore and no selection produces a Recall pill, then
+  confirm toolbar capture still saves with the optional access off.
+- [x] Display the test records in the native macOS app and confirm the original
+  selection and personal notes render exactly. The optional Chrome access was
+  left revoked after verification.
+- [x] Run that manual save against a temporary backend with AI intentionally
+  unconfigured. The stored Capture later entering enrichment `error` is expected
+  and is not a capture failure: the persist-first pipeline retained its exact
+  source and user note.
 
 ## Scope, schedule, and collaboration guardrails
 

@@ -1,15 +1,14 @@
 import {
   CAPTURE_LIMITS,
-  RECALL_UNAVAILABLE_DETAIL,
-  RECALL_UNAVAILABLE_TITLE,
-  RecallApiError,
-  RecallCaptureValidationError,
-  RecallUnavailableError,
-  buildCaptureRequest,
-  createCapture,
 } from "../api/recall.js";
+import {
+  RecallCoordinatorError,
+  buildCaptureAttempt,
+  sendCaptureAttempt,
+} from "../api/messages.js";
 import { extractPageCapture } from "../content/capture.js";
 import { createCaptureAttempt } from "./capture-attempt.js";
+import { createInlinePermissionController } from "./inline-permission.js";
 
 
 const pageTitle = document.querySelector("#page-title");
@@ -24,13 +23,18 @@ const saveButton = document.querySelector("#save-button");
 const statusBox = document.querySelector("#status");
 const statusTitle = document.querySelector("#status-title");
 const statusDetail = document.querySelector("#status-detail");
+const inlineSetting = document.querySelector(".inline-setting");
+const inlineToggle = document.querySelector("#inline-capture-toggle");
+const inlinePermissionStatus = document.querySelector("#inline-permission-status");
 
 let activeTab = null;
 let extractedCapture = null;
 let draftKey = null;
 let isSubmitting = false;
+let retryAllowed = true;
 
-const captureAttempt = createCaptureAttempt(buildCaptureRequest);
+const captureAttempt = createCaptureAttempt(buildCaptureAttempt);
+const inlinePermissionController = createInlinePermissionController();
 const SUCCESS_CLOSE_DELAY_MS = 700;
 
 
@@ -71,7 +75,10 @@ function updateControls() {
   noteInput.setAttribute("aria-invalid", String(!noteIsValid));
   noteInput.disabled = isSubmitting || captureAttempt.isLocked;
   retryWarning.hidden = !captureAttempt.isLocked;
-  saveButton.disabled = isSubmitting || !extractedCapture || !noteIsValid;
+  saveButton.disabled = isSubmitting
+    || !extractedCapture
+    || !noteIsValid
+    || (captureAttempt.isLocked && !retryAllowed);
 }
 
 
@@ -158,6 +165,60 @@ async function initialize() {
 }
 
 
+function showInlinePermissionStatus(message, kind = "information") {
+  inlinePermissionStatus.hidden = !message;
+  inlinePermissionStatus.textContent = message;
+  inlinePermissionStatus.dataset.kind = kind;
+}
+
+
+async function initializeInlinePermission() {
+  if (!chrome.permissions?.contains || !chrome.runtime?.sendMessage) {
+    inlineSetting.hidden = true;
+    return;
+  }
+  inlineToggle.disabled = true;
+  try {
+    inlineToggle.checked = await inlinePermissionController.currentEnabled();
+  } catch (_error) {
+    showInlinePermissionStatus(
+      "Inline capture access could not be checked.",
+      "error",
+    );
+  } finally {
+    inlineToggle.disabled = false;
+  }
+}
+
+
+async function setInlinePermission(enabled) {
+  inlineToggle.disabled = true;
+  showInlinePermissionStatus("");
+  try {
+    const result = await inlinePermissionController.setEnabled(enabled);
+    inlineToggle.checked = result.enabled;
+    if (result.reason === "denied") {
+      showInlinePermissionStatus("Website access was not granted.", "error");
+      return;
+    }
+    showInlinePermissionStatus(
+      result.enabled
+        ? "Enabled on open web pages; no refresh is needed."
+        : "Inline capture is off; toolbar capture still works.",
+    );
+  } catch (_error) {
+    inlineToggle.checked = await inlinePermissionController.currentEnabled()
+      .catch(() => !enabled);
+    showInlinePermissionStatus(
+      "Recall could not update website access.",
+      "error",
+    );
+  } finally {
+    inlineToggle.disabled = false;
+  }
+}
+
+
 noteInput.addEventListener("input", () => {
   updateControls();
   void persistDraft().catch(() => {
@@ -176,8 +237,8 @@ async function submitCapture() {
   saveButton.textContent = "Saving…";
 
   try {
-    const payload = captureAttempt.request(extractedCapture, noteInput.value);
-    await createCapture(payload);
+    const attempt = captureAttempt.request(extractedCapture, noteInput.value);
+    await sendCaptureAttempt(attempt);
     if (draftKey) {
       try {
         await chrome.storage.local.remove(draftKey);
@@ -185,17 +246,15 @@ async function submitCapture() {
         // The backend save succeeded; draft cleanup cannot turn it into failure.
       }
     }
-    showStatus("success", "Saved.", "Processing with AI…");
+    showStatus("success", "Saved.", "Your source and note are safely stored.");
     saveButton.textContent = "Saved";
     closeAfterSuccess();
   } catch (error) {
-    if (error instanceof RecallUnavailableError) {
-      showStatus("error", RECALL_UNAVAILABLE_TITLE, RECALL_UNAVAILABLE_DETAIL);
-    } else if (error instanceof RecallCaptureValidationError) {
-      showStatus("error", "This Capture is too long.", error.message);
-    } else if (error instanceof RecallApiError) {
-      showStatus("error", "Couldn’t save this Capture.", error.message);
+    if (error instanceof RecallCoordinatorError) {
+      retryAllowed = error.retryable;
+      showStatus("error", error.title, error.message);
     } else {
+      retryAllowed = true;
       showStatus(
         "error",
         "Couldn’t save this Capture.",
@@ -203,13 +262,18 @@ async function submitCapture() {
       );
     }
     setSubmitting(false);
-    saveButton.textContent = "Try again";
+    saveButton.textContent = retryAllowed ? "Try again" : "Cannot retry";
   }
 }
 
 
 saveButton.addEventListener("click", () => {
   void submitCapture();
+});
+
+
+inlineToggle.addEventListener("change", () => {
+  void setInlinePermission(inlineToggle.checked);
 });
 
 
@@ -225,4 +289,4 @@ document.addEventListener("keydown", (event) => {
 });
 
 
-void initialize();
+void Promise.all([initialize(), initializeInlinePermission()]);
