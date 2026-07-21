@@ -133,9 +133,13 @@ final class RecallStore: ObservableObject {
                 imageAnalysisIsEnabled,
                 forKey: Self.imageAnalysisUserDefaultsKey
             )
+            screenshotImageAnalysisIsEnabled = imageAnalysisIsEnabled
         }
     }
     @Published var screenshotImageAnalysisIsEnabled = false
+    var screenshotImageAnalysisWillRun: Bool {
+        imageAnalysisIsEnabled && screenshotImageAnalysisIsEnabled
+    }
     @Published private(set) var isPreparingScreenshot = false
     @Published private(set) var isExtractingScreenshot = false
     @Published private(set) var screenshotExtractionSummary: String?
@@ -765,7 +769,7 @@ final class RecallStore: ObservableObject {
                             sourceApp: draft.sourceApplication,
                             userNote: note,
                             capturedAt: draft.capturedAt,
-                            analyzeImage: screenshotImageAnalysisIsEnabled
+                            analyzeImage: screenshotImageAnalysisWillRun
                         ),
                         imageData: screenshotPreviewData,
                         mediaType: screenshotMediaType

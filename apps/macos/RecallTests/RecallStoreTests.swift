@@ -870,6 +870,45 @@ final class RecallStoreTests: XCTestCase {
         XCTAssertTrue(store.imageAnalysisIsEnabled)
     }
 
+    func testImageAnalysisMasterSwitchBlocksDraftOverrideAndUploadFlag() async throws {
+        let client = RecordingAPIClient(createStatus: .ready)
+        let store = RecallStore(
+            client: client,
+            clipboardService: ClipboardServiceStub(
+                result: .failure(ClipboardCaptureError.noText)
+            ),
+            imageAnalysisIsEnabled: false,
+            screenshotCaptureService: ScreenshotServiceStub(
+                result: .success(
+                    ScreenshotSnapshot(
+                        imageData: Data([4, 5, 6]),
+                        mediaType: "image/png",
+                        sourceApplication: "Preview"
+                    )
+                )
+            )
+        )
+
+        let prepared = await store.prepareScreenshotCapture()
+        XCTAssertTrue(prepared)
+        store.screenshotNoteKind = .image
+        store.screenshotImageAnalysisIsEnabled = true
+        XCTAssertFalse(store.screenshotImageAnalysisWillRun)
+
+        let saved = await store.submitQuickCapture()
+        XCTAssertTrue(saved)
+        let requests = await client.allImageCreateRequests()
+        let request = try XCTUnwrap(requests.first)
+        XCTAssertFalse(request.metadata.analyzeImage)
+
+        store.imageAnalysisIsEnabled = true
+        XCTAssertTrue(store.screenshotImageAnalysisIsEnabled)
+        XCTAssertTrue(store.screenshotImageAnalysisWillRun)
+        store.imageAnalysisIsEnabled = false
+        XCTAssertFalse(store.screenshotImageAnalysisIsEnabled)
+        XCTAssertFalse(store.screenshotImageAnalysisWillRun)
+    }
+
     func testAttachmentImageLoadsOnceAndDeleteRemovesTheMemory() async throws {
         let client = RecordingAPIClient(createStatus: .ready)
         let store = RecallStore(

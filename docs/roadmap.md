@@ -125,8 +125,8 @@ not approval from a particular historical developer role.
 6. **Image attachments — implemented, live acceptance pending.** D-037 adds a
    normalized attachment table and application-owned file storage rather than
    SQLite blobs. A screenshot draft chooses **Text note** or **Image note**; the
-   latter saves one bounded PNG/JPEG plus an independent note. AI analysis is
-   persistent, explicit, and off by default. Opt-in background analysis writes
+   latter saves one bounded PNG/JPEG plus an independent note. AI analysis has
+   a persistent off-by-default master switch and a per-image opt-out. Background analysis writes
    OCR and visual meaning into the existing searchable derived fields without
    replacing the original. Library thumbnails, detail display, retry, and
    deletion are integrated. Automated suites pass; verify signed capture,

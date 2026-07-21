@@ -1033,11 +1033,12 @@ megapixels. Attachment metadata lives in a normalized
 application-owned directory beside the database by default; SQLite stores no
 image blob or user-controlled filesystem path.
 
-Image analysis is opt-in and off by default. A persisted global setting controls
-the default and the image-note draft exposes the choice before save. With it
-off, no image bytes are sent to OpenAI and the note is immediately usable as an
-ordinary local image memory. With it on, Recall first commits the original and
-then performs one background multimodal Structured Outputs request. OCR is
+Image analysis is opt-in and off by default. A persisted global master switch is
+the privacy boundary: while it is off, the image-note draft cannot enable AI and
+the upload contract is forced to `analyze_image: false`. When the master switch
+is on, each new image draft defaults to analysis on but can be turned off for
+that image before saving. An analyzed image is first committed locally and then
+uses one background multimodal Structured Outputs request. OCR is
 stored in the existing `selected_text` field; visual title, summary, concepts,
 entities, tags, caveats, and search aliases use the existing AI fields. This
 preserves original/user/AI separation and lets FTS and semantic retrieval index

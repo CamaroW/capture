@@ -44,7 +44,7 @@ D-037 now adds one persisted screenshot image per Capture, an independent note,
 an off-by-default visual-analysis preference, background OCR/visual enrichment
 through the existing searchable fields, library/detail rendering, and deletion
 of both metadata and the local file. The feature branch passes 234 backend and
-156 macOS tests. Signed real-device provider-off/provider-on acceptance remains
+157 macOS tests. Signed real-device provider-off/provider-on acceptance remains
 open; no claim of live privacy or visual-search acceptance is made yet.
 
 Last baseline cross-check: 2026-07-18 against all sections of
@@ -99,7 +99,7 @@ Update protocol:
 | Safeguard | Chrome action popup sizing | Complete and real-Chrome verified | D-033 uses a 344 × 510 root without viewport-height feedback; 68/68 tests and selected/metadata layouts pass |
 | Addition | Native Accessibility selection | Implemented; primary path accepted | D-034 adds explicit `Option+Shift+Command+S`, fail-closed AX reading, anchored review, safe v1 shortcut migration, and 108/108 macOS tests; user acceptance passed on 2026-07-21 |
 | Addition | Clipboard selection compatibility | Complete and real-device accepted | D-035 adds an off-by-default transactional synthetic-Copy fallback with exact-control and application-scoped tickets; 149/149 host tests and B-016 user acceptance pass |
-| Addition | Persisted image notes and visual indexing | Implemented; signed acceptance pending | D-037 adds one bounded local image, separate note, off-by-default background AI, existing-search reuse, rendering, retry, and deletion; 234 backend and 156 macOS tests pass |
+| Addition | Persisted image notes and visual indexing | Implemented; signed acceptance pending | D-037 adds one bounded local image, separate note, off-by-default background AI, existing-search reuse, rendering, retry, and deletion; 234 backend and 157 macOS tests pass |
 
 The D-023 integration closes B-010, the macOS slice closes B-006, and real
 provider plus unpacked-Chrome evidence closes B-007, B-008, and B-009. B-011 is
@@ -120,8 +120,9 @@ acceptance and PR review pending
   PNG/JPEG bytes under `RECALL_ATTACHMENTS_PATH`, outside SQLite. Validate type,
   signature, 8 MiB size, 20,000-pixel dimensions, 40-megapixel area, generated
   paths, and containment.
-- [x] Keep visual analysis off by default with a persistent global setting and a
-  per-draft control. When disabled, save locally without an OpenAI image call.
+- [x] Keep visual analysis off by default with a persistent global master
+  switch. When off, disable the per-draft control and force local-only saving;
+  when on, default each new draft on while allowing a per-image opt-out.
 - [x] When enabled, perform one post-commit background multimodal Structured
   Outputs request. Store OCR in `selected_text`, visual meaning in existing AI
   fields, and reuse the established FTS/embedding pipeline.
@@ -131,7 +132,7 @@ acceptance and PR review pending
 - [x] Verify invalid images, idempotent retries, provider-off preservation,
   provider-on OCR/visual search, attachment reads, deletion, migration, health,
   networking, preference persistence, upload retry, image loading, and old-
-  backend decoding. Evidence: 234/234 backend and 156/156 macOS tests.
+  backend decoding. Evidence: 234/234 backend and 157/157 macOS tests.
 - [ ] On the stably signed app, verify one provider-off image never reaches
   OpenAI, one provider-on image becomes searchable by a visual concept absent
   from its OCR, restart persistence, full-resolution detail display, retry, and
@@ -2479,7 +2480,7 @@ resolved errors.
 - Resolution: Used the backend-local `.venv/bin/python`, loaded the bundled Node
   runtime and ran the extension suite directly, then assigned both async Swift
   results before asserting them. Final evidence is 234/234 backend, 44/44
-  stress, 68/68 Chrome, and 156/156 macOS tests.
+  stress, 68/68 Chrome, and 157/157 macOS tests.
 - Project impact: Verification harness only; no production-code assertion or
   product behavior failed.
 

@@ -94,16 +94,15 @@ struct ShortcutSettingsView: View {
 
             Section {
                 Toggle(
-                    "Analyze new image notes with AI",
+                    "Allow cloud AI analysis for image notes",
                     isOn: $store.imageAnalysisIsEnabled
                 )
                 Text(
-                    "When enabled, Recall saves the original screenshot locally first, "
-                        + "then sends it to the configured GPT service for background OCR "
-                        + "and visual understanding. The generated text, description, and "
-                        + "tags make the image searchable. You can override this choice in "
-                        + "the screenshot window before each save. Provider data policies "
-                        + "apply whenever analysis is enabled."
+                    "This is the master privacy control. When enabled, new image notes "
+                        + "start with AI indexing on, and you can turn it off for one image "
+                        + "before saving. Recall saves the original locally first, then sends "
+                        + "enabled images to the configured GPT service for background OCR "
+                        + "and visual understanding. Provider data policies apply."
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -111,8 +110,8 @@ struct ShortcutSettingsView: View {
                 Text("Image notes")
             } footer: {
                 Text(
-                    "Turning this off prevents new image notes from being sent for analysis. "
-                        + "Existing images and previously generated annotations are unchanged."
+                    "Turning this off blocks AI analysis for every new image note and disables "
+                        + "the per-image control. Existing images and annotations are unchanged."
                 )
             }
 

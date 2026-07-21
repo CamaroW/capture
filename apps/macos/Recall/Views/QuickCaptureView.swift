@@ -195,16 +195,20 @@ struct QuickCaptureView: View {
                         Text("Build a searchable AI index")
                             .font(.headline)
                         Text(
-                            store.screenshotImageAnalysisIsEnabled
-                                ? "Save immediately, then send the image to GPT in the background for OCR and visual understanding. Provider data policies apply."
-                                : "Keep the image as a local attachment without OCR or visual analysis."
+                            !store.imageAnalysisIsEnabled
+                                ? "AI image analysis is blocked by the master privacy control in Settings. This image will stay local."
+                                : store.screenshotImageAnalysisWillRun
+                                    ? "Save immediately, then send the image to GPT in the background for OCR and visual understanding. Provider data policies apply."
+                                    : "Keep this image as a local attachment without OCR or visual analysis."
                         )
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     }
                 }
                 .toggleStyle(.switch)
-                .disabled(store.isQuickCaptureRetryLocked)
+                .disabled(
+                    !store.imageAnalysisIsEnabled || store.isQuickCaptureRetryLocked
+                )
 
                 Label(
                     "The original image is stored locally; AI annotations remain separate and can fail without losing it.",
@@ -337,7 +341,7 @@ struct QuickCaptureView: View {
             return "Your clipboard text and optional note are saved before AI processing begins."
         case .screenshot:
             if store.screenshotNoteKind == .image {
-                return store.screenshotImageAnalysisIsEnabled
+                return store.screenshotImageAnalysisWillRun
                     ? "The image and note are saved first; OCR and visual indexing continue in the background."
                     : "The image and optional note are saved locally without AI analysis."
             }

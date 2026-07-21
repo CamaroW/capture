@@ -42,11 +42,13 @@ Capture source text or one original image, plus an optional user note
 After selecting a screen region, choose **Text note** to keep the D-027 workflow:
 extract with **GPT · Cloud** or **Apple Vision · On device**, review the result,
 and save only text plus your separate note. Choose **Image note** to preserve the
-original image and optionally add a note. Image analysis is off by default. If
-you opt in, background OCR and visual understanding add searchable derived
-metadata; if you leave it off, the image never goes to OpenAI and remains a
-normal local image memory. SQLite stores attachment metadata, not image blobs;
-original bytes live in the application-owned attachments directory.
+original image and optionally add a note. Cloud image analysis has an
+off-by-default master privacy control. When enabled, each new image defaults to
+searchable background OCR and visual understanding, but you can turn it off for
+that image before saving. When the master control is off, the per-image control
+is disabled and images cannot be sent to OpenAI. SQLite stores attachment
+metadata, not image blobs; original bytes live in the application-owned
+attachments directory.
 
 ## Start the backend
 
@@ -260,7 +262,7 @@ separate note, display it in library/detail views, delete it with its local
 file, and—only with explicit opt-in—run background OCR plus visual indexing into
 the existing search fields. Provider errors keep the original safe and support
 the ordinary **Retry AI** action. Automated verification currently passes 234
-backend and 156 macOS tests; signed real-device image/AI acceptance remains the
+backend and 157 macOS tests; signed real-device image/AI acceptance remains the
 feature's final gate.
 
 The preceding integrated baseline also passes 44/44 stress scenarios and
