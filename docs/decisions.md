@@ -52,6 +52,7 @@ addition made beyond [`product-plan.md`](product-plan.md).
 | D-036 | Conservative structured-text line restoration | Capture-correctness addition | Merged in PR #14; live Gemini clipboard payload verified |
 | D-037 | Persisted image notes with opt-in background visual indexing | Addition | Implemented; automated verification and real-app AI-disabled/AI-enabled acceptance pass |
 | D-038 | Editable memories with explicit user overrides and state-driven UI | Addition | Implemented on `codex/note-editing-ui-polish`; 243 backend, 44/44 stress, 68/68 Chrome, and 189/189 macOS checks pass |
+| D-039 | Branded Chrome settings and movable capture surfaces | Addition | Implemented and real-Chrome verified on `codex/note-editing-ui-polish`; 70/70 extension tests pass |
 
 ## D-001 — Localhost monorepo architecture
 
@@ -1165,6 +1166,42 @@ D-036 changes no API, schema, migration, enrichment, FTS, or embedding
 projection. Persisting original HTML/RTF/Markdown, declaring a source-format
 field, or rendering Markdown/LaTeX requires a later reviewed contract and
 privacy decision. Image attachments remain a separate storage design.
+
+## D-039 — Branded Chrome settings and movable capture surfaces
+
+- Classification: UI/UX addition approved by user direction
+- Status: Implemented and real-Chrome verified on
+  `codex/note-editing-ui-polish`; 70/70 extension tests pass
+- Product impact: Makes browser capture visually consistent with Recall, moves
+  browser preferences out of the transient popup, and keeps long content usable
+- Schedule impact: Bounded Chrome-extension slice; no backend or data migration
+
+The toolbar popup, inline selection pill, and inline composer reuse Recall's
+checked-in pink icon and palette. The toolbar popup retains D-033's deterministic
+root-sizing rule at a roomier 380 × 560 pixels: its selected-text preview is
+vertically scrollable and resizable, while the Save button has a fixed 40-pixel
+height and cannot stretch with the note field.
+
+A dedicated Manifest V3 options page owns browser preferences. It shows the
+currently assigned `_execute_action` shortcut and links to Chrome's extension
+shortcut manager because the browser does not permit an extension to rewrite
+its command binding programmatically. The existing **Show Add to Recall when I
+select text** control moves from the popup to this page without changing its
+optional-permission, revocation, or off-by-default behavior.
+
+The inline composer's source title now wraps within two visible lines rather
+than widening the surface. Its branded header is a mouse/pointer drag handle;
+movement is clamped to the current viewport and a resize re-clamps an open
+composer. Dragging does not alter the host document layout or change submission,
+retry, BFCache, focus, or privacy state. The only new page-readable extension
+resource is the existing 32-pixel icon, scoped to HTTP/HTTPS origins; no new
+required permission is introduced.
+
+Real Chrome verified the popup, options page, current shortcut display, branded
+selection pill, wrapped long source title, and a composer dragged to the viewport
+edge. The user's inline-access preference remained off throughout this visual
+check; the isolated production-script harness exercised the inline UI without
+changing that permission.
 
 ## Pending decisions
 

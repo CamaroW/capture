@@ -96,7 +96,7 @@ Update protocol:
 | 3 | Capture CRUD and first integration | Complete | Backend CRUD plus live macOS list/detail/clipboard evidence close D-013 and B-006 |
 | 4 | OpenAI enrichment | Complete | Deterministic coverage plus real Responses API `processing → ready` proof resolve B-007 |
 | 5 | FTS5 keyword retrieval | Complete | Commit `d34a567` pushed; 119 tests and provider-off live/restart proof pass |
-| 6 | Chrome capture | Complete and real-Chrome verified | 68/68 tests pass; unpacked selected-text/no-selection Captures resolve B-009, and D-033 verifies the corrected action-popup layout |
+| 6 | Chrome capture | Complete and real-Chrome verified | 70/70 tests pass; D-039 adds branded settings, stable scroll/resize behavior, wrapped titles, and a viewport-bounded movable inline composer |
 | 7 | Embeddings and hybrid retrieval | Complete | Real embedding and vague semantic-query proof with non-null score resolve B-008 |
 | 8 | Reliability and demo readiness | P0 integration verified / backlog reduced | Layer 8 baseline passes 214 backend tests and 44/44 stress scenarios; stale-process recovery and version-aware one-command startup are verified |
 | 9 | Optional Apple on-device path | Gated | Decision D-008 accepted; prerequisites unmet |
@@ -112,6 +112,7 @@ Update protocol:
 | Addition | Structured-text capture fidelity | Implemented; live payload verified | D-036 adds a bounded plain/HTML/RTF resolver to explicit Clipboard Capture; the real Gemini payload restores verified boundaries from flattened plain text while retaining TeX |
 | Addition | Persisted image notes and visual indexing | Implemented; primary real-app flow accepted | D-037 adds one bounded local image, separate note, off-by-default AI master switch, existing-search reuse, rendering, retry, and deletion; 235 backend and 184 integrated macOS tests pass |
 | Addition | Editable memories and UI state polish | Implemented; automated verification complete | D-038 adds a separate user-edit layer, migration 005, explicit AI refresh, creation/edit sorting, state-driven notices, Settings tabs, and stable image-note layout; 243 backend, 44/44 stress, 68/68 Chrome, and 189/189 macOS checks pass |
+| Addition | Chrome extension UI and settings polish | Implemented and real-Chrome verified | D-039 moves inline access to a branded options page, exposes Chrome shortcut management, stabilizes the popup, wraps long titles, and adds viewport-bounded composer dragging; 70/70 extension tests pass |
 
 The D-023 integration closes B-010, the macOS slice closes B-006, and real
 provider plus unpacked-Chrome evidence closes B-007, B-008, and B-009. B-011 is
@@ -146,6 +147,27 @@ real-app interaction acceptance remains
   including production Apple Vision OCR.
 - [ ] Complete real-app edit, sort, notice-resolution, Settings-tab, and stable
   image-composer layout acceptance before merge.
+
+## Active addition — Chrome extension UI and settings polish
+
+Status: `[x]` D-039 implementation, automated verification, and bounded real-
+Chrome UI acceptance complete
+
+- [x] Replace text-only green marks with the checked-in Recall icon and pink
+  palette in the popup, inline pill, inline composer, and options page.
+- [x] Move inline-access configuration from the transient popup to an extension
+  Settings page without changing its optional, revocable permission boundary.
+- [x] Display the active `_execute_action` shortcut and link to Chrome's shortcut
+  manager instead of implying the extension can silently rewrite the key.
+- [x] Give the popup preview independent vertical scrolling and resize, retain an
+  internally scrollable deterministic 380 × 560 root, and fix Save at 40 pixels.
+- [x] Wrap long inline source titles without horizontal overflow and make the
+  branded header a pointer drag handle clamped to the visible viewport.
+- [x] Keep the user's inline-access preference off during UI acceptance; use the
+  isolated production-script harness to verify the selection pill, composer,
+  long-title wrapping, and viewport-edge dragging.
+- [x] Pass all 70 dependency-free extension tests, including manifest/options,
+  scroll/resize, fixed-button, title-wrap, branding, drag, and clamp regressions.
 
 ## Completed addition — persisted image notes and visual indexing
 
@@ -2607,3 +2629,29 @@ resolved errors.
   safe 500 can now remain queued during an exceptional local burst. Normal
   requests proceed as soon as the lock is released; a genuinely stuck lock is
   still bounded and fails after 30 seconds rather than waiting indefinitely.
+
+## E-062 — Extension UI verification shell did not expose npm
+
+- Date: 2026-07-21
+- Status: Resolved
+- Symptom: The first D-039 extension test command returned `command not found:
+  npm`.
+- Cause: The desktop review shell does not place a system npm installation on
+  `PATH`; the extension itself remains build-free.
+- Resolution: Loaded the bundled workspace Node runtime and ran the same
+  dependency-free `node --test tests/*.test.mjs` suite directly. All 70 tests
+  pass.
+- Project impact: Verification command only; no extension code failed.
+
+## E-063 — Sandboxed D-039 fixture server could not bind loopback
+
+- Date: 2026-07-21
+- Status: Resolved
+- Symptom: The first temporary `127.0.0.1:8899` static-server launch returned
+  `PermissionError: Operation not permitted`.
+- Cause: The restricted command environment cannot bind a listening socket.
+- Resolution: Started the same Python standard-library server in the approved
+  host environment, verified the bounded real-Chrome layouts, then stopped the
+  server cleanly.
+- Project impact: Local visual-verification environment only; no product port,
+  backend process, or persistent service changed.

@@ -209,6 +209,15 @@ search and AI processing. This boundary expands the macOS suite from 43 to 48
 tests. PR #9 merged D-030 into `main` at `0c1083e` after all required checks
 passed.
 
+D-039 brings the current Chrome suite to 70/70. The toolbar and inline surfaces
+reuse Recall's pink icon and palette; a dedicated extension Settings page now
+shows the active shortcut and owns the optional inline-access toggle. The popup
+uses a deterministic 380 × 560 root with a scrollable/resizable selection
+preview and fixed-height Save button. Inline page titles wrap, and the branded
+header can move the composer within the visible viewport. These layouts passed
+bounded real-Chrome acceptance without changing the user's disabled inline-
+access preference.
+
 D-031 adds configurable native global screenshot and clipboard capture without
 changing the API, schemas, backend, extension, or screenshot privacy boundary.
 Registration changes are transactional, failures remain visible in the menu
@@ -287,8 +296,8 @@ level timestamps, and gives connection, clipboard, save, and processing notices
 state-aware lifetimes. Settings is split into Shortcuts and Privacy & Features,
 and the image-note review layout no longer shifts when AI indexing is toggled.
 
-The integrated D-038 tree passes 243 backend tests, 44/44 stress scenarios,
-189/189 macOS tests, and 68/68 Chrome-extension tests. Real-app acceptance for
+The integrated D-038/D-039 tree passes 243 backend tests, 44/44 stress scenarios,
+189/189 macOS tests, and 70/70 Chrome-extension tests. Real-app acceptance for
 the new edit, sort, notice, Settings, and image-composer interactions remains
 the final pre-merge check.
 

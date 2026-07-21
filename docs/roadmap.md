@@ -61,6 +61,11 @@ split; they are no longer assignment gates.
   it until an explicit refresh. Creation/user-edit sorting, minute-level static
   timestamps, state-driven notices, separated Settings tabs, and stable image-
   note composer geometry are implemented on `codex/note-editing-ui-polish`.
+- D-039 polishes the Chrome client on the same branch: the popup and inline
+  surfaces use Recall branding, browser preferences live on a dedicated options
+  page, long previews scroll without stretching Save, and the inline composer
+  wraps page titles and can be dragged within the viewport. The 70/70 extension
+  suite and bounded real-Chrome checks pass.
 - The macOS app and Chrome extension are separate clients of the loopback
   FastAPI service. The app does not yet package or start that service.
 
@@ -159,13 +164,20 @@ not approval from a particular historical developer role.
    toggle layout. The gate passes 243 backend, 44/44 stress, 68/68 Chrome, and
    189/189 host macOS checks. Complete real-app editing and layout acceptance
    before merge.
-8. **App-managed local service lifecycle.** Define how a packaged Recall app
+8. **Chrome extension UI and settings polish — implemented and real-Chrome
+   verified.** D-039 applies Recall's icon and pink palette, moves inline access
+   to a dedicated options page, exposes Chrome-owned shortcut management, keeps
+   long popup previews scrollable/resizable with a fixed Save button, wraps
+   inline page titles, and adds viewport-bounded header dragging. The user's
+   inline-access preference stayed off during isolated-harness acceptance; all
+   70 extension tests pass.
+9. **App-managed local service lifecycle.** Define how a packaged Recall app
    starts, monitors, and stops the backend without assuming a repository checkout
    or terminal command. Keep this separate from browser native messaging.
-9. **Menu-bar image drop.** After image semantics are decided, add a bounded
+10. **Menu-bar image drop.** After image semantics are decided, add a bounded
    drop target. A click-open drop zone may precede a custom AppKit status item
    that opens when an image is dragged directly over the icon.
-10. **Release readiness.** Finish licensing, screenshots, demo materials,
+11. **Release readiness.** Finish licensing, screenshots, demo materials,
    packaging/notarization decisions, a stable tag, and clean-machine setup proof.
 
 ## Later product polish
@@ -211,12 +223,14 @@ not approval from a particular historical developer role.
   no-selection toolbar capture relies on title/URL/note as allowed by D-009.
 - Inline UI shows a Unicode-aware selection count independent of the note count
   and exposes a keyboard-scrollable long-selection preview. Under D-033, the
-  action popup has a deterministic 344 × 510 root and an internally scrollable
-  shell; real Chrome verifies both selected and metadata-only layouts.
+  action popup first established a deterministic 344 × 510 root. D-039 retains
+  that non-viewport sizing rule at 380 × 560, adds a scrollable/resizable preview
+  and fixed Save button, and moves inline access to the options page. Long inline
+  source titles wrap and the composer can be dragged within viewport bounds.
 - Existing stored context is collapsed by default in the native detail view.
   Expanding it renders at most 2,000 characters and 60 lines while preserving
   the complete database/model value for retrieval and AI.
-- The extension suite passes 68/68 tests. The macOS suite adds five bounded
+- The extension suite passes 70/70 tests. The macOS suite adds five bounded
   context-projection tests and passes 48/48; detail collapse/expansion was
   verified in the rebuilt app against the problematic long record.
 
